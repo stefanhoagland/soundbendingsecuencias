@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Churches{% endblock %}
+{% block title %}{{ _('Churches') }}{% endblock %}
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
-<h1>Churches</h1>
-<p class="muted">Each church gets its own page. Its people sign in here and land straight on it. They see only their own church's songs, which their leaders (or you) upload.</p>
+<h1>{{ _('Churches') }}</h1>
+<p class="muted">{{ _("Each church gets its own page. Its people sign in here and land straight on it. They see only their own church's songs, which their leaders (or you) upload.") }}</p>
 {% if churches %}
 <section class="card">
   <table class="plain">
-    <thead><tr><th>Church</th><th>Page</th><th>People</th><th>Songs</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Church') }}</th><th>{{ _('Page') }}</th><th>{{ _('People') }}</th><th>{{ _('Songs') }}</th><th></th></tr></thead>
     <tbody>
     {% for c in churches %}
       <tr>
@@ -16,11 +16,11 @@
         <td>{{ c.members|length }}</td>
         <td>{{ c.songs|length }}</td>
         <td class="row end nowrap">
-          <a class="button small" href="/c/{{ c.slug }}">Open</a>
-          <a class="button small" href="/c/{{ c.slug }}/members">Members</a>
+          <a class="button small" href="/c/{{ c.slug }}">{{ _('Open') }}</a>
+          <a class="button small" href="/c/{{ c.slug }}/members">{{ _('Members') }}</a>
           <form method="post" action="/admin/churches/{{ c.id }}/delete" class="inline"
-                data-confirm="Delete {{ c.name }}, its people's logins and the songs they uploaded?">
-            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete</button>
+                data-confirm="{{ _("Delete {name}, its people's logins and the songs they uploaded?", name=c.name) }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Delete') }}</button>
           </form>
         </td>
       </tr>
@@ -30,21 +30,21 @@
 </section>
 {% endif %}
 <section class="card stack">
-  <h2>Add church</h2>
+  <h2>{{ _('Add church') }}</h2>
   <form method="post" action="/admin/churches" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="row">
-      <label>Church name <input name="name" required placeholder="Iglesia Central"></label>
-      <label>Page address <span class="muted small">(optional)</span>
+      <label>{{ _('Church name') }} <input name="name" required placeholder="Iglesia Central"></label>
+      <label>{{ _('Page address') }} <span class="muted small">{{ _('(optional)') }}</span>
         <span class="slug-input"><span class="muted">/c/</span><input name="slug" pattern="[A-Za-z0-9\-]{0,64}" placeholder="iglesia-central"></span></label>
     </div>
-    <h3 class="small-heading">First leader <span class="muted small">(optional, you can add people later)</span></h3>
+    <h3 class="small-heading">{{ _('First leader') }} <span class="muted small">{{ _('(optional, you can add people later)') }}</span></h3>
     <div class="row">
-      <label>Username <input name="leader_username" pattern="[A-Za-z0-9_.\-]{2,64}"></label>
-      <label>Name <input name="leader_name"></label>
-      <label>Password <input type="password" name="leader_password" minlength="8" autocomplete="new-password"></label>
+      <label>{{ _('Username') }} <input name="leader_username" pattern="[A-Za-z0-9_.\-]{2,64}"></label>
+      <label>{{ _('Name') }} <input name="leader_name"></label>
+      <label>{{ _('Password') }} <input type="password" name="leader_password" minlength="8" autocomplete="new-password"></label>
     </div>
-    <div class="row end"><button class="primary">Add church</button></div>
+    <div class="row end"><button class="primary">{{ _('Add church') }}</button></div>
   </form>
 </section>
 {% endblock %}

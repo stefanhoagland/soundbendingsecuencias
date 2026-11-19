@@ -45,6 +45,8 @@ class User(Base):
     # Church members sign in straight to their church; site admins have no church.
     church_id: Mapped[int | None] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), nullable=True, index=True)
     church_role: Mapped[str] = mapped_column(String(16), default="member", server_default="member")
+    # "en" or "es"; empty until they pick one (then the browser's language is used).
+    language: Mapped[str] = mapped_column(String(8), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     songs: Mapped[list[Song]] = relationship(back_populates="owner", cascade="all, delete-orphan")

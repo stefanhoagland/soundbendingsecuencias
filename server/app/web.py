@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import section_jobs, services
+from . import i18n, section_jobs, services
 from .deps import (
     can_add_songs,
     can_edit,
@@ -31,6 +31,11 @@ router = APIRouter(include_in_schema=False)
 def render(request: Request, name: str, user: User | None, status_code: int = 200, **ctx) -> HTMLResponse:
     templates = request.app.state.templates
     flash = request.session.pop("flash", None)
+    lang = i18n.pick_language(request, user)
+    if flash:
+        flash = {**flash, "text": i18n.translate_message(lang, flash["text"])}
+    if ctx.get("error"):
+        ctx["error"] = i18n.translate_message(lang, ctx["error"])
     nav_church = None
     if user is not None:
         if user.church is not None:
@@ -46,6 +51,11 @@ def render(request: Request, name: str, user: User | None, status_code: int = 20
             "flash": flash,
             "nav_church": nav_church,
             "practice": bool(user and user.practice_only),
+            "lang": lang,
+            "_": i18n.gettext(lang),
+            "tr": lambda text: i18n.translate_message(lang, text),
+            "setlist_label": lambda sl: services.setlist_label(sl, lang),
+            "js_strings": i18n.JS_ES if lang == "es" else {},
             **ctx,
         },
         status_code=status_code,
@@ -105,14 +115,37 @@ def login(
     user = db.scalar(select(User).where(User.username == username.strip().lower()))
     if user is None or not verify_password(password, user.password_hash):
         return render(request, "login.html", None, status_code=401, error="Wrong username or password", username=username)
+    lang = request.session.get("lang")
     request.session.clear()
     request.session["uid"] = user.id
+    if user.language in i18n.LANGS:
+        request.session["lang"] = user.language
+    elif lang in i18n.LANGS:
+        request.session["lang"] = lang
+        user.language = lang
+        db.commit()
     return redirect("/")
+
+
+@router.get("/lang/{code}")
+def set_language(code: str, request: Request, next: str = "/", user: User | None = Depends(optional_user), db: Session = Depends(get_db)):
+    if code in i18n.LANGS:
+        request.session["lang"] = code
+        if user is not None:
+            user.language = code
+            db.commit()
+    # Only go back to a page on this site.
+    if not next.startswith("/") or next.startswith("//"):
+        next = "/"
+    return RedirectResponse(next, status_code=303)
 
 
 @router.post("/logout", dependencies=[Depends(check_csrf)])
 def logout(request: Request):
+    lang = request.session.get("lang")
     request.session.clear()
+    if lang:
+        request.session["lang"] = lang
     return redirect("/login")
 
 
@@ -147,7 +180,6 @@ def church_library(slug: str, request: Request, q: str = "", user: User = Depend
         can_add=can_add_songs(user),
         upcoming=upcoming,
         past=past[:3],
-        setlist_label=services.setlist_label,
     )
 
 
@@ -217,7 +249,10 @@ async def create_song_from_zip(
     if fetch:
         status = 422 if errors and not made else 200
         return JSONResponse(
-            {"songs": [{"id": s.id, "title": s.title, "url": f"/songs/{s.id}"} for s in made], "errors": errors},
+            {
+                "songs": [{"id": s.id, "title": s.title, "url": f"/songs/{s.id}"} for s in made],
+                "errors": [i18n.translate_message(i18n.pick_language(request, user), e) for e in errors],
+            },
             status_code=status,
         )
     if len(made) == 1 and not errors:
@@ -329,7 +364,11 @@ async def upload_tracks(
         section_jobs.maybe_queue_after_upload(request.app.state, db, song)
     if request.headers.get("x-requested-with") == "fetch":
         status = 422 if errors and not created else 200
-        return JSONResponse({"created": [t.id for t in created], "errors": errors}, status_code=status)
+        lang = i18n.pick_language(request, user)
+        return JSONResponse(
+            {"created": [t.id for t in created], "errors": [i18n.translate_message(lang, e) for e in errors]},
+            status_code=status,
+        )
     if errors:
         return redirect(f"/songs/{song.id}", ("error", " ".join(errors)), request)
     return redirect(f"/songs/{song.id}", ("ok", f"Added {len(created)} track(s)."), request)
@@ -769,7 +808,6 @@ def setlists_page(slug: str, request: Request, user: User = Depends(web_user), d
         church=church,
         upcoming=upcoming,
         past=past,
-        setlist_label=services.setlist_label,
         default_date=services.next_sunday().isoformat(),
     )
 
@@ -804,7 +842,6 @@ def setlist_page(setlist_id: int, request: Request, user: User = Depends(web_use
         church=setlist.church,
         manage=manage,
         library=library,
-        label=services.setlist_label(setlist),
     )
 
 

@@ -2,14 +2,14 @@
 {% block title %}{{ setlist.name }}{% endblock %}
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
-<a class="muted small" href="{{ '/c/' ~ church.slug ~ ('/setlists' if manage else '') }}">← {{ 'Setlists' if manage else 'Practice' }}</a>
+<a class="muted small" href="{{ '/c/' ~ church.slug ~ ('/setlists' if manage else '') }}">← {{ _('Setlists') if manage else _('Practice') }}</a>
 <div class="page-head">
   <div>
     <h1>{{ setlist.name }}</h1>
-    <p class="muted">{{ label }}{% if setlist.items %}{{ ' · ' if label }}{{ setlist.items|length }} songs · {{ setlist.duration_seconds|duration }}{% endif %}
-      {% if manage %}{% if setlist.shared %}<span class="badge shared">Shared with members</span>{% else %}<span class="badge draft">Draft</span>{% endif %}{% endif %}</p>
+    {% set label = setlist_label(setlist) %}<p class="muted">{{ label }}{% if setlist.items %}{{ ' · ' if label }}{{ _('{n} songs · {length}', n=setlist.items|length, length=setlist.duration_seconds|duration) }}{% endif %}
+      {% if manage %}{% if setlist.shared %}<span class="badge shared">{{ _('Shared with members') }}</span>{% else %}<span class="badge draft">{{ _('Draft') }}</span>{% endif %}{% endif %}</p>
   </div>
-  {% if setlist.items %}<div class="actions"><a class="button primary" href="/songs/{{ setlist.items[0].song_id }}?setlist={{ setlist.id }}">▶ Start practising</a></div>{% endif %}
+  {% if setlist.items %}<div class="actions"><a class="button primary" href="/songs/{{ setlist.items[0].song_id }}?setlist={{ setlist.id }}">{{ _('▶ Start practising') }}</a></div>{% endif %}
 </div>
 {% if setlist.notes %}<p class="notes">{{ setlist.notes }}</p>{% endif %}
 
@@ -24,7 +24,7 @@
     <span class="muted small">{{ it.song.duration_seconds|duration }}</span>
   </a></li>
   {% else %}
-  <p class="muted">No songs in this setlist yet.</p>
+  <p class="muted">{{ _('No songs in this setlist yet.') }}</p>
   {% endfor %}
 </ol>
 {% else %}
@@ -32,38 +32,38 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <section class="card stack">
     <div class="row">
-      <label>Name <input name="name" value="{{ setlist.name }}" required></label>
-      <label>Date <input type="date" name="service_date" value="{{ setlist.service_date.isoformat() if setlist.service_date else '' }}"></label>
+      <label>{{ _('Name') }} <input name="name" value="{{ setlist.name }}" required></label>
+      <label>{{ _('Date') }} <input type="date" name="service_date" value="{{ setlist.service_date.isoformat() if setlist.service_date else '' }}"></label>
     </div>
-    <label>Notes for the team <textarea name="notes" rows="2" placeholder="Call time 8:30. Coro twice at the end of Santo.">{{ setlist.notes }}</textarea></label>
+    <label>{{ _('Notes for the team') }} <textarea name="notes" rows="2" placeholder="{{ _('Call time 8:30. Coro twice at the end of Santo.') }}">{{ setlist.notes }}</textarea></label>
   </section>
   <section class="card stack">
-    <h2>Songs</h2>
+    <h2>{{ _('Songs') }}</h2>
     <ol class="setlist-edit" id="setlist-songs">
       {% for it in setlist.items %}
       <li><input type="hidden" name="song" value="{{ it.song.id }}">
         <span class="sl-title"><strong>{{ it.song.title }}</strong> <span class="muted small">{{ it.song.play_key or it.song.key }}{{ ' · %g BPM'|format(it.song.bpm) if it.song.bpm }}</span></span>
-        <button type="button" class="icon" data-move="-1" title="Move up">↑</button>
-        <button type="button" class="icon" data-move="1" title="Move down">↓</button>
-        <button type="button" class="icon danger" data-remove title="Remove">✕</button>
+        <button type="button" class="icon" data-move="-1" title="{{ _('Move up') }}">↑</button>
+        <button type="button" class="icon" data-move="1" title="{{ _('Move down') }}">↓</button>
+        <button type="button" class="icon danger" data-remove title="{{ _('Remove') }}">✕</button>
       </li>
       {% endfor %}
     </ol>
-    <p class="muted small" id="setlist-empty" {{ 'hidden' if setlist.items }}>No songs yet. Add some below.</p>
+    <p class="muted small" id="setlist-empty" {{ 'hidden' if setlist.items }}>{{ _('No songs yet. Add some below.') }}</p>
     <div class="row">
-      <select id="add-song" aria-label="Song to add">
-        <option value="">Add a song…</option>
+      <select id="add-song" aria-label="{{ _('Song to add') }}">
+        <option value="">{{ _('Add a song…') }}</option>
         {% for s in library %}<option value="{{ s.id }}" data-key="{{ s.play_key or s.key }}" data-bpm="{{ '%g'|format(s.bpm) if s.bpm else '' }}">{{ s.title }}</option>{% endfor %}
       </select>
     </div>
   </section>
   <section class="card row share-row">
-    <label class="check"><input type="checkbox" name="shared" {{ 'checked' if setlist.shared }}> <strong>Share with members</strong> <span class="muted small">They'll see it at the top of their Practice page.</span></label>
-    <div class="row end grow"><button class="primary">Save setlist</button></div>
+    <label class="check"><input type="checkbox" name="shared" {{ 'checked' if setlist.shared }}> <strong>{{ _('Share with members') }}</strong> <span class="muted small">{{ _("They'll see it at the top of their Practice page.") }}</span></label>
+    <div class="row end grow"><button class="primary">{{ _('Save setlist') }}</button></div>
   </section>
 </form>
-<form method="post" action="/setlists/{{ setlist.id }}/delete" class="row end" data-confirm="Delete this setlist? The songs stay in your library.">
-  <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete setlist</button>
+<form method="post" action="/setlists/{{ setlist.id }}/delete" class="row end" data-confirm="{{ _('Delete this setlist? The songs stay in your library.') }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Delete setlist') }}</button>
 </form>
 {% endif %}
 {% endblock %}
@@ -88,9 +88,9 @@
     const opt = e.target.selectedOptions[0]; if (!opt.value) return;
     const li = document.createElement("li");
     li.innerHTML = '<input type="hidden" name="song"><span class="sl-title"><strong></strong> <span class="muted small"></span></span>' +
-      '<button type="button" class="icon" data-move="-1" title="Move up">↑</button>' +
-      '<button type="button" class="icon" data-move="1" title="Move down">↓</button>' +
-      '<button type="button" class="icon danger" data-remove title="Remove">✕</button>';
+      '<button type="button" class="icon" data-move="-1" title="{{ _('Move up') }}">↑</button>' +
+      '<button type="button" class="icon" data-move="1" title="{{ _('Move down') }}">↓</button>' +
+      '<button type="button" class="icon danger" data-remove title="{{ _('Remove') }}">✕</button>';
     li.querySelector("input").value = opt.value;
     li.querySelector("strong").textContent = opt.textContent;
     li.querySelector(".muted").textContent = opt.dataset.key + (opt.dataset.bpm ? ` · ${opt.dataset.bpm} BPM` : "");
