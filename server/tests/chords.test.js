@@ -55,3 +55,25 @@ test("parses mixed chart formats", () => {
 test("render escapes HTML", () => {
   assert.ok(!C.render("<script>alert(1)</script>").includes("<script>"));
 });
+
+test("Latin (Do-Re-Mi) chords transpose in Latin", () => {
+  for (const c of ["Do", "Re", "Mim", "Fa#m7", "Sol/Si", "Sib", "La7sus4", "DO"]) assert.ok(C.isChord(c), c);
+  assert.equal(C.transposeChord("Do", 2, false), "Re");
+  assert.equal(C.transposeChord("Sol/Si", 2, false), "La/Do#");
+  assert.equal(C.transposeChord("Mi7", -1, true), "Mib7");
+  assert.equal(C.transposeChord("Sib", 2, false), "Do");
+  assert.equal(C.transposeChordLine("Mi      Si      Do#m", 1, false), "Fa      Do      Rem");
+});
+
+test("labelled chord lines and extra symbols", () => {
+  const b = C.parse("Intro: E B C#m A", 2, false);
+  assert.deepEqual(b.map((x) => x.type), ["heading", "chords"]);
+  assert.equal(b[1].chords, "F# C# D#m B");
+  assert.equal(C.transposeChord("Fº", 2, false), "Gº");
+  assert.equal(C.transposeChord("C△7", 2, false), "D△7");
+});
+
+test("Spanish lyric lines are not mistaken for chords", () => {
+  assert.ok(!C.isChordLine("Mi Dios es fiel"));
+  assert.ok(!C.isChordLine("Si tú estás aquí"));
+});
