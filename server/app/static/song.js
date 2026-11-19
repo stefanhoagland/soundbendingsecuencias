@@ -74,7 +74,7 @@
 
   // ---------- Track list: locked until "Edit tracks" ----------
   const tracksForm = document.getElementById("tracks-form");
-  if (tracksForm) {
+  if (tracksForm && document.getElementById("tracks-edit")) {
     const fields = document.getElementById("tracks-fields");
     const editBtn = document.getElementById("tracks-edit");
     const saveBtn = document.getElementById("tracks-save");
@@ -196,7 +196,7 @@
         ? (n ? `Showing in ${playKey()} (original ${originalKey}, ${n > 0 ? "+" : ""}${n})` : `Key of ${originalKey}`)
         : (n ? `Transposed ${n > 0 ? "+" : ""}${n}` : "");
     }
-    if (chartPreview && !chartForm.hidden) chartPreview.innerHTML = window.Chords.render(chartTextarea.value, semis(), useFlats());
+    if (chartPreview && chartForm && !chartForm.hidden) chartPreview.innerHTML = window.Chords.render(chartTextarea.value, semis(), useFlats());
   }
 
   if (chartForm) {
@@ -210,6 +210,8 @@
       chartForm.hidden = true; chartView.hidden = false; edit.hidden = false;
     });
     chartTextarea.addEventListener("input", renderChart);
+  }
+  if (chartView) {
     let size = 1;
     try { size = parseFloat(localStorage.getItem("sbs.chartSize")) || 1; } catch (_) {}
     const applySize = () => {
@@ -225,6 +227,7 @@
     transposeSel.addEventListener("change", async () => {
       renderChart();
       if (window.SBS.setPitch) window.SBS.setPitch(semis());
+      if (!transposeSel.dataset.url) return; // view-only: the key change is just for this screen
       const body = new URLSearchParams({ semitones: transposeSel.value });
       try {
         await fetch(transposeSel.dataset.url, {

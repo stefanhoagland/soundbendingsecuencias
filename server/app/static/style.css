@@ -227,3 +227,12 @@ fieldset#tracks-fields:disabled input[type=checkbox] { appearance: auto; -webkit
 @keyframes spin { to { transform: rotate(360deg); } }
 .auto-badge { font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--guide); border: 1px solid color-mix(in srgb, var(--guide) 50%, transparent); border-radius: 4px; padding: 0 .3rem; margin-left: .3rem; vertical-align: middle; }
 .detect-actions { margin-top: .8rem; justify-content: space-between; align-items: center; }
+
+/* churches */
+.catalog-badge { display: inline-block; font-size: 0.7rem; padding: 1px 6px; border-radius: 999px; background: rgba(120, 160, 255, 0.15); color: #9bb8ff; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.04em; }
+.catalog-note { margin: 0 0 12px; }
+.share-card { margin-top: 16px; }
+.share-list { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.slug-input { display: flex; align-items: center; gap: 4px; }
+.small-heading { font-size: 0.95rem; margin: 8px 0 0; }
+.nowrap { flex-wrap: nowrap; white-space: nowrap; }

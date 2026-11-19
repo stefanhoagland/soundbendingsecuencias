@@ -14,6 +14,31 @@ def utcnow() -> datetime:
 
 
 TRACK_ROLES = ("stem", "click", "guide", "cue")
+CHURCH_ROLES = ("leader", "member")
+
+
+class Church(Base):
+    """A church's own space: its members, its own songs, and songs shared with it from the catalog."""
+
+    __tablename__ = "churches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(128))
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    members: Mapped[list[User]] = relationship(back_populates="church", order_by="User.username")
+    songs: Mapped[list[Song]] = relationship(back_populates="church", foreign_keys="Song.church_id")
+    shared_songs: Mapped[list[Song]] = relationship(secondary="song_shares", back_populates="shared_with")
+
+
+class SongShare(Base):
+    """A catalog song (one without a church) made visible to a church."""
+
+    __tablename__ = "song_shares"
+
+    song_id: Mapped[int] = mapped_column(ForeignKey("songs.id", ondelete="CASCADE"), primary_key=True)
+    church_id: Mapped[int] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), primary_key=True)
 
 
 class User(Base):
@@ -24,10 +49,18 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(128), default="")
     password_hash: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Church members sign in straight to their church; site admins have no church.
+    church_id: Mapped[int | None] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), nullable=True, index=True)
+    church_role: Mapped[str] = mapped_column(String(16), default="member", server_default="member")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     songs: Mapped[list[Song]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     tokens: Mapped[list[ApiToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    church: Mapped[Church | None] = relationship(back_populates="members")
+
+    @property
+    def is_leader(self) -> bool:
+        return self.church_id is not None and self.church_role == "leader"
 
 
 class ApiToken(Base):
@@ -50,6 +83,8 @@ class Song(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Set for a church's own songs; empty for the catalog (personal) songs.
+    church_id: Mapped[int | None] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     artist: Mapped[str] = mapped_column(String(255), default="")
     bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -67,6 +102,8 @@ class Song(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     owner: Mapped[User] = relationship(back_populates="songs")
+    church: Mapped[Church | None] = relationship(back_populates="songs", foreign_keys=[church_id])
+    shared_with: Mapped[list[Church]] = relationship(secondary="song_shares", back_populates="shared_songs")
     tracks: Mapped[list[Track]] = relationship(
         back_populates="song", cascade="all, delete-orphan", order_by="Track.position"
     )

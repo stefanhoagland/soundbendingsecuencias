@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from . import section_jobs, services
 from .deps import (
+    can_add_songs,
+    can_edit,
     check_csrf,
     csrf_token,
     get_db,
@@ -19,7 +21,7 @@ from .deps import (
     web_admin,
     web_user,
 )
-from .models import TRACK_ROLES, ApiToken, Song, User
+from .models import CHURCH_ROLES, TRACK_ROLES, ApiToken, Church, Song, User
 from .security import new_api_token, verify_password
 from .storage import track_path
 
@@ -29,10 +31,16 @@ router = APIRouter(include_in_schema=False)
 def render(request: Request, name: str, user: User | None, status_code: int = 200, **ctx) -> HTMLResponse:
     templates = request.app.state.templates
     flash = request.session.pop("flash", None)
+    nav_church = None
+    if user is not None:
+        if user.church is not None:
+            nav_church = {"slug": user.church.slug, "name": user.church.name, "leader": user.is_leader}
+        elif user.is_admin and request.session.get("church"):
+            nav_church = {**request.session["church"], "leader": True}
     return templates.TemplateResponse(
         request,
         name,
-        {"user": user, "csrf": csrf_token(request), "flash": flash, **ctx},
+        {"user": user, "csrf": csrf_token(request), "flash": flash, "nav_church": nav_church, **ctx},
         status_code=status_code,
     )
 
@@ -41,6 +49,33 @@ def redirect(url: str, flash: tuple[str, str] | None = None, request: Request | 
     if flash and request is not None:
         request.session["flash"] = {"kind": flash[0], "text": flash[1]}
     return RedirectResponse(url, status_code=303)
+
+
+def current_church(request: Request, user: User, db: Session) -> Church | None:
+    """The church whose library this person is working in (admins pick one by opening /c/<slug>)."""
+    if not user.is_admin:
+        return user.church
+    picked = request.session.get("church")
+    church = db.get(Church, picked["id"]) if picked else None
+    if picked and church is None:
+        request.session.pop("church", None)
+    return church
+
+
+def library_url(church: Church | None) -> str:
+    return f"/c/{church.slug}" if church else "/"
+
+
+def require_adder(user: User) -> None:
+    if not can_add_songs(user):
+        raise HTTPException(403, "Only church leaders can add songs")
+
+
+def church_for_manager(slug: str, user: User, db: Session) -> Church:
+    church = db.scalar(select(Church).where(Church.slug == slug))
+    if church is None or not (user.is_admin or (user.church_id == church.id and user.is_leader)):
+        raise HTTPException(404, "Church not found")
+    return church
 
 
 # ---- auth -----------------------------------------------------------------
@@ -79,12 +114,27 @@ def logout(request: Request):
 
 @router.get("/")
 def library(request: Request, q: str = "", user: User = Depends(web_user), db: Session = Depends(get_db)):
+    if user.church is not None:
+        return redirect(library_url(user.church) + (f"?q={q}" if q else ""))
+    request.session.pop("church", None)
     songs = services.list_songs(db, user, q)
-    return render(request, "library.html", user, songs=songs, q=q)
+    return render(request, "library.html", user, songs=songs, q=q, church=None, can_add=can_add_songs(user))
+
+
+@router.get("/c/{slug}")
+def church_library(slug: str, request: Request, q: str = "", user: User = Depends(web_user), db: Session = Depends(get_db)):
+    church = db.scalar(select(Church).where(Church.slug == slug))
+    if church is None or not (user.is_admin or user.church_id == church.id):
+        raise HTTPException(404, "Church not found")
+    if user.is_admin:
+        request.session["church"] = {"id": church.id, "slug": church.slug, "name": church.name}
+    songs = services.list_songs(db, user, q, church)
+    return render(request, "library.html", user, songs=songs, q=q, church=church, can_add=can_add_songs(user))
 
 
 @router.get("/songs/new")
 def new_song_page(request: Request, user: User = Depends(web_user)):
+    require_adder(user)
     return render(request, "song_form.html", user, song=None, keys=services.KEY_OPTIONS, form={})
 
 
@@ -100,8 +150,10 @@ def create_song(
     user: User = Depends(web_user),
     db: Session = Depends(get_db),
 ):
+    require_adder(user)
     form = dict(title=title, artist=artist, bpm=bpm, key=key, time_signature=time_signature, notes=notes)
-    song = Song(owner_id=user.id, title="")
+    church = current_church(request, user, db)
+    song = Song(owner_id=user.id, church_id=church.id if church else None, title="")
     try:
         services.apply_song_fields(song, **form)
     except services.ValidationError as exc:
@@ -121,8 +173,10 @@ async def create_song_from_zip(
     db: Session = Depends(get_db),
 ):
     """Create one song per uploaded ZIP, named from the file (title, key and BPM if present)."""
+    require_adder(user)
     fetch = request.headers.get("x-requested-with") == "fetch"
     library_dir = get_settings(request).library_dir
+    church = current_church(request, user, db)
     made, errors = [], []
     for upload in files:
         name = upload.filename or "Untitled.zip"
@@ -130,7 +184,7 @@ async def create_song_from_zip(
             errors.append(f"{name}: not a ZIP file")
             continue
         fields = services.song_fields_from_filename(name)
-        song = Song(owner_id=user.id, title="")
+        song = Song(owner_id=user.id, church_id=church.id if church else None, title="")
         services.apply_song_fields(song, artist="", time_signature="4/4", notes="", **fields)
         db.add(song)
         db.commit()
@@ -150,17 +204,27 @@ async def create_song_from_zip(
     if len(made) == 1 and not errors:
         return redirect(f"/songs/{made[0].id}", ("ok", f"Created “{made[0].title}” with {len(made[0].tracks)} tracks."), request)
     msg = f"Created {len(made)} song(s)." + (" " + " ".join(errors) if errors else "")
-    return redirect("/", ("error" if errors else "ok", msg), request)
+    return redirect(library_url(church), ("error" if errors else "ok", msg), request)
 
 
 @router.get("/songs/{song_id}")
 def song_page(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
-    song = owned_song(song_id, user, db)
+    song = owned_song(song_id, user, db, edit=False)
+    # Back to the library you came from: the song's church, or the church viewing a shared catalog song.
+    church = song.church or current_church(request, user, db)
+    if church is not None and song.church_id is None and church not in song.shared_with:
+        church = None
+    share_churches = list(db.scalars(select(Church).order_by(Church.name))) if user.is_admin and song.church_id is None else []
     return render(
         request,
         "song.html",
         user,
         song=song,
+        editable=can_edit(user, song),
+        back_url=library_url(church),
+        from_catalog=song.church_id is None and user.church_id is not None,
+        share_churches=share_churches,
+        shared_ids={c.id for c in song.shared_with},
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
         has_guide=section_jobs.has_guide(song),
@@ -216,9 +280,9 @@ def update_song(
 @router.post("/songs/{song_id}/delete", dependencies=[Depends(check_csrf)])
 def delete_song(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
     song = owned_song(song_id, user, db)
-    title = song.title
+    title, church = song.title, song.church
     services.delete_song(db, get_settings(request).library_dir, song)
-    return redirect("/", ("ok", f"Deleted “{title}”."), request)
+    return redirect(library_url(church), ("ok", f"Deleted “{title}”."), request)
 
 
 # ---- tracks ---------------------------------------------------------------
@@ -303,7 +367,7 @@ def delete_track(track_id: int, request: Request, user: User = Depends(web_user)
 
 @router.get("/tracks/{track_id}/audio")
 def track_audio(track_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
-    track = owned_track(track_id, user, db)
+    track = owned_track(track_id, user, db, edit=False)
     path = track_path(get_settings(request).library_dir, track.song_id, track.stored_filename)
     if not path.exists():
         raise HTTPException(404, "Audio file is missing on the server")
@@ -379,7 +443,7 @@ def detect_sections(song_id: int, request: Request, user: User = Depends(web_use
 
 @router.get("/songs/{song_id}/sections/status")
 def sections_status(song_id: int, user: User = Depends(web_user), db: Session = Depends(get_db)):
-    song = owned_song(song_id, user, db)
+    song = owned_song(song_id, user, db, edit=False)
     return {"status": song.sections_status, "note": song.sections_note, "count": len(song.sections)}
 
 
@@ -398,8 +462,9 @@ def delete_section(section_id: int, request: Request, user: User = Depends(web_u
     from .models import Section
 
     section = db.get(Section, section_id)
-    if section is None or section.song.owner_id != user.id:
+    if section is None:
         raise HTTPException(404, "Section not found")
+    owned_song(section.song_id, user, db)
     song_id = section.song_id
     db.delete(section)
     db.commit()
@@ -507,3 +572,153 @@ def delete_user(user_id: int, request: Request, user: User = Depends(web_admin),
     db.delete(target)
     db.commit()
     return redirect("/admin/users", ("ok", f"Deleted {target.username}."), request)
+
+
+# ---- churches ---------------------------------------------------------------
+
+
+@router.post("/songs/{song_id}/share", dependencies=[Depends(check_csrf)])
+async def share_song(song_id: int, request: Request, user: User = Depends(web_admin), db: Session = Depends(get_db)):
+    song = owned_song(song_id, user, db)
+    form = await request.form()
+    try:
+        services.set_song_shares(db, song, form.getlist("church"))
+    except services.ValidationError as exc:
+        return redirect(f"/songs/{song.id}#share", ("error", str(exc)), request)
+    names = ", ".join(c.name for c in song.shared_with)
+    return redirect(
+        f"/songs/{song.id}#share", ("ok", f"Shared with {names}." if names else "Not shared with any church."), request
+    )
+
+
+@router.get("/admin/churches")
+def churches_page(request: Request, user: User = Depends(web_admin), db: Session = Depends(get_db)):
+    churches = list(db.scalars(select(Church).order_by(Church.name)))
+    return render(request, "churches.html", user, churches=churches)
+
+
+@router.post("/admin/churches", dependencies=[Depends(check_csrf)])
+def create_church(
+    request: Request,
+    name: str = Form(""),
+    slug: str = Form(""),
+    leader_username: str = Form(""),
+    leader_name: str = Form(""),
+    leader_password: str = Form(""),
+    user: User = Depends(web_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        if leader_username.strip():
+            # Check the leader's details before creating anything.
+            services.validate_new_user(db, leader_username, leader_password)
+        church = services.create_church(db, name, slug)
+        if leader_username.strip():
+            services.create_user(
+                db, leader_username, leader_password, display_name=leader_name, church=church, church_role="leader"
+            )
+    except services.ValidationError as exc:
+        return redirect("/admin/churches", ("error", str(exc)), request)
+    return redirect("/admin/churches", ("ok", f"Added {church.name}. Its page is /c/{church.slug}."), request)
+
+
+@router.post("/admin/churches/{church_id}/delete", dependencies=[Depends(check_csrf)])
+def delete_church(church_id: int, request: Request, user: User = Depends(web_admin), db: Session = Depends(get_db)):
+    church = db.get(Church, church_id)
+    if church is None:
+        raise HTTPException(404, "Church not found")
+    name = church.name
+    if (request.session.get("church") or {}).get("id") == church.id:
+        request.session.pop("church", None)
+    services.delete_church(db, get_settings(request).library_dir, church)
+    return redirect("/admin/churches", ("ok", f"Deleted {name}."), request)
+
+
+@router.get("/c/{slug}/members")
+def members_page(slug: str, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    church = church_for_manager(slug, user, db)
+    return render(request, "members.html", user, church=church, roles=CHURCH_ROLES)
+
+
+@router.post("/c/{slug}/members", dependencies=[Depends(check_csrf)])
+def add_member(
+    slug: str,
+    request: Request,
+    username: str = Form(""),
+    display_name: str = Form(""),
+    password: str = Form(""),
+    role: str = Form("member"),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    church = church_for_manager(slug, user, db)
+    url = f"/c/{church.slug}/members"
+    try:
+        new = services.create_user(db, username, password, display_name=display_name, church=church, church_role=role)
+    except services.ValidationError as exc:
+        return redirect(url, ("error", str(exc)), request)
+    return redirect(url, ("ok", f"Added {new.username}. They sign in at this site and land on {church.name}."), request)
+
+
+def _member(church: Church, user_id: int, db: Session) -> User:
+    member = db.get(User, user_id)
+    if member is None or member.church_id != church.id:
+        raise HTTPException(404, "Member not found")
+    return member
+
+
+@router.post("/c/{slug}/members/{user_id}/role", dependencies=[Depends(check_csrf)])
+def change_member_role(
+    slug: str,
+    user_id: int,
+    request: Request,
+    role: str = Form(""),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    church = church_for_manager(slug, user, db)
+    member = _member(church, user_id, db)
+    url = f"/c/{church.slug}/members"
+    if member.id == user.id and role != "leader":
+        return redirect(url, ("error", "You can't take away your own leader role."), request)
+    try:
+        services.set_church_role(db, member, role)
+    except services.ValidationError as exc:
+        return redirect(url, ("error", str(exc)), request)
+    return redirect(url, ("ok", f"{member.username} is now a {role}."), request)
+
+
+@router.post("/c/{slug}/members/{user_id}/password", dependencies=[Depends(check_csrf)])
+def reset_member_password(
+    slug: str,
+    user_id: int,
+    request: Request,
+    password: str = Form(""),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    church = church_for_manager(slug, user, db)
+    member = _member(church, user_id, db)
+    url = f"/c/{church.slug}/members"
+    try:
+        services.set_password(db, member, password)
+    except services.ValidationError as exc:
+        return redirect(url, ("error", str(exc)), request)
+    return redirect(url, ("ok", f"Password reset for {member.username}."), request)
+
+
+@router.post("/c/{slug}/members/{user_id}/delete", dependencies=[Depends(check_csrf)])
+def remove_member(
+    slug: str, user_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)
+):
+    church = church_for_manager(slug, user, db)
+    member = _member(church, user_id, db)
+    url = f"/c/{church.slug}/members"
+    if member.id == user.id:
+        return redirect(url, ("error", "You can't remove yourself."), request)
+    # The church keeps the songs this person added; they move to whoever removed them.
+    for song in list(member.songs):
+        song.owner_id = user.id
+    db.delete(member)
+    db.commit()
+    return redirect(url, ("ok", f"Removed {member.username}."), request)

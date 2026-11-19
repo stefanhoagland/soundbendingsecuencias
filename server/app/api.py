@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import section_jobs, services
-from .deps import api_user, get_db, get_settings, owned_song, owned_track
+from .deps import api_user, can_add_songs, get_db, get_settings, owned_song, owned_track
 from .models import ApiToken, Song, Track, User
 from .security import new_api_token, verify_password
 from .storage import track_path
@@ -88,6 +88,7 @@ def song_summary(s: Song) -> dict:
         "track_count": len(s.tracks),
         "total_bytes": s.total_bytes,
         "updated_at": s.updated_at.isoformat(),
+        "church_id": s.church_id,
     }
 
 
@@ -139,17 +140,21 @@ def me(user: User = Depends(api_user)):
         "username": user.username,
         "display_name": user.display_name,
         "is_admin": user.is_admin,
+        "church": {"id": user.church.id, "name": user.church.name, "slug": user.church.slug} if user.church else None,
+        "church_role": user.church_role if user.church else None,
     }
 
 
 @router.get("/songs")
 def list_songs(q: str = "", user: User = Depends(api_user), db: Session = Depends(get_db)):
-    return {"songs": [song_summary(s) for s in services.list_songs(db, user, q)]}
+    return {"songs": [song_summary(s) for s in services.list_songs(db, user, q, user.church)]}
 
 
 @router.post("/songs", status_code=201)
 def create_song(body: SongIn, request: Request, user: User = Depends(api_user), db: Session = Depends(get_db)):
-    song = Song(owner=user, title="")
+    if not can_add_songs(user):
+        raise HTTPException(403, "Only church leaders can add songs")
+    song = Song(owner=user, church_id=user.church_id, title="")
     try:
         _apply(song, body)
     except services.ValidationError as exc:
@@ -161,7 +166,7 @@ def create_song(body: SongIn, request: Request, user: User = Depends(api_user), 
 
 @router.get("/songs/{song_id}")
 def get_song(song_id: int, request: Request, user: User = Depends(api_user), db: Session = Depends(get_db)):
-    return song_manifest(request, owned_song(song_id, user, db))
+    return song_manifest(request, owned_song(song_id, user, db, edit=False))
 
 
 @router.put("/songs/{song_id}")
@@ -219,7 +224,7 @@ def delete_track(track_id: int, request: Request, user: User = Depends(api_user)
 
 @router.get("/tracks/{track_id}/audio", name="api_track_audio")
 def track_audio(track_id: int, request: Request, user: User = Depends(api_user), db: Session = Depends(get_db)):
-    track = owned_track(track_id, user, db)
+    track = owned_track(track_id, user, db, edit=False)
     path = track_path(get_settings(request).library_dir, track.song_id, track.stored_filename)
     if not path.exists():
         raise HTTPException(404, "Audio file is missing on the server")

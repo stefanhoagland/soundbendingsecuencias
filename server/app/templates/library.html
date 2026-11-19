@@ -1,14 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <h1>Library</h1>
+  <div>
+    <h1>{{ church.name if church else 'Library' }}</h1>
+    {% if church and user.is_admin %}<p class="muted small">You're working in {{ church.name }}'s library. New songs you add here belong to them. <a href="/">Back to my catalog</a></p>
+    {% elif not church and user.is_admin %}<p class="muted small">Your catalog. Share a song with churches from its page.</p>{% endif %}
+  </div>
   <div class="actions">
-    <form method="get" action="/" class="search">
+    <form method="get" action="{{ '/c/' ~ church.slug if church else '/' }}" class="search">
       <input type="search" name="q" value="{{ q }}" placeholder="Search title or artist">
     </form>
-    <a class="button primary" href="/songs/new">+ New song</a>
+    {% if can_add %}<a class="button primary" href="/songs/new">+ New song</a>{% endif %}
   </div>
 </div>
+{% if can_add %}
 
 <form id="zip-upload" class="dropzone compact" method="post" action="/songs/from-zip" enctype="multipart/form-data">
   <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -20,6 +25,7 @@
   <noscript><button class="primary">Upload</button></noscript>
 </form>
 <ul id="zip-list" class="upload-list"></ul>
+{% endif %}
 
 {% if songs %}
 <table class="songs">
@@ -27,7 +33,7 @@
   <tbody>
   {% for s in songs %}
     <tr onclick="location.href='/songs/{{ s.id }}'">
-      <td><a href="/songs/{{ s.id }}">{{ s.title }}</a></td>
+      <td><a href="/songs/{{ s.id }}">{{ s.title }}</a>{% if church and s.church_id is none %} <span class="catalog-badge" title="Shared from the Soundbending catalog">catalog</span>{% endif %}</td>
       <td>{{ s.artist }}</td>
       <td><span class="pill">{{ s.key or '–' }}</span></td>
       <td>{{ '%g'|format(s.bpm) if s.bpm else '–' }}</td>
@@ -43,8 +49,12 @@
 {% else %}
 <div class="empty card">
   <h2>No songs yet</h2>
+  {% if can_add %}
   <p>Create a song, then drop its WAV stems in.</p>
   <a class="button primary" href="/songs/new">+ New song</a>
+  {% else %}
+  <p>Your church leader hasn't added any songs yet.</p>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}
