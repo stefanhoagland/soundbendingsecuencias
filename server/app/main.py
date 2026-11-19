@@ -16,7 +16,9 @@ from . import api, web
 from .config import Settings, load_settings
 from .db import Base, add_missing_columns, make_engine, make_session_factory
 from .deps import LoginRequired
-from .models import User
+from .guide import WhisperTranscriber
+from .models import Song, User
+from .section_jobs import JobRunner
 from .services import create_user
 
 log = logging.getLogger("soundbending")
@@ -66,6 +68,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = factory
+    app.state.jobs = JobRunner()
+    app.state.transcriber = WhisperTranscriber(settings.whisper_model, settings.models_dir)
+    # A restart interrupts any detection in flight; don't leave songs stuck on "running".
+    with factory() as db:
+        for song in db.query(Song).filter(Song.sections_status.in_(("queued", "running"))):
+            song.sections_status, song.sections_note = "failed", "Server restarted during detection. Click Detect to try again."
+        db.commit()
 
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["filesize"] = _filesize

@@ -144,12 +144,19 @@
 
 <section class="card" id="sections">
   <h2>Sections</h2>
+  {% if song.sections_status in ('queued', 'running') %}
+  <div class="detect-status running" id="detect-status" data-url="/songs/{{ song.id }}/sections/status">
+    <span class="spinner"></span> Listening to the guide track for section cues…
+  </div>
+  {% elif song.sections_note %}
+  <div class="detect-status {{ song.sections_status }}">{{ song.sections_note }}</div>
+  {% endif %}
   {% if song.sections %}
   <ol class="sections">
     {% for sec in song.sections %}
     <li>
       <button class="link jump" data-time="{{ sec.start_seconds }}">{{ fmt(sec.start_seconds) }}</button>
-      <span>{{ sec.name }}</span>
+      <span>{{ sec.name }}{% if sec.source == 'auto' %} <span class="auto-badge" title="Heard in the guide track">auto</span>{% endif %}</span>
       <form method="post" action="/sections/{{ sec.id }}/delete" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="icon danger" title="Remove">✕</button>
@@ -170,6 +177,21 @@
       {% for n in ['Intro','Verse','Verse 1','Verse 2','Pre-Chorus','Chorus','Bridge','Instrumental','Interlude','Tag','Outro','Ending'] %}<option value="{{ n }}">{% endfor %}
     </datalist>
   </form>
+  {% if has_guide %}
+  <div class="row detect-actions">
+    <form method="post" action="/songs/{{ song.id }}/sections/detect" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="small" {{ 'disabled' if song.sections_status in ('queued', 'running') }}
+              title="Listen to the guide track and add its section cues. Sections you typed in are kept.">🎧 Detect from guide</button>
+    </form>
+    {% if song.sections|selectattr('source', 'equalto', 'auto')|list %}
+    <form method="post" action="/songs/{{ song.id }}/sections/clear-auto" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="small link">Clear auto sections</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 </div>
 </div>

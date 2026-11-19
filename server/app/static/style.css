@@ -219,3 +219,11 @@ fieldset#tracks-fields:disabled input[type=checkbox] { appearance: auto; -webkit
 .track.removing { opacity: .45; }
 .track.removing .name { text-decoration: line-through; }
 .delete-check { color: var(--err); }
+.detect-status { font-size: .85rem; padding: .55rem .7rem; border-radius: 8px; margin-bottom: .8rem; background: var(--panel-2); border: 1px solid var(--line); }
+.detect-status.running { display: flex; align-items: center; gap: .5rem; border-color: color-mix(in srgb, var(--guide) 50%, transparent); }
+.detect-status.done { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.detect-status.failed { border-color: color-mix(in srgb, var(--err) 50%, transparent); color: var(--err); }
+.spinner { width: .9rem; height: .9rem; border: 2px solid var(--guide); border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.auto-badge { font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--guide); border: 1px solid color-mix(in srgb, var(--guide) 50%, transparent); border-radius: 4px; padding: 0 .3rem; margin-left: .3rem; vertical-align: middle; }
+.detect-actions { margin-top: .8rem; justify-content: space-between; align-items: center; }

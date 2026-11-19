@@ -121,6 +121,20 @@
     setEditing(false);
   }
 
+  // ---------- Section detection progress ----------
+  const detect = document.getElementById("detect-status");
+  if (detect) {
+    const poll = async () => {
+      try {
+        const r = await fetch(detect.dataset.url, { credentials: "same-origin" });
+        const d = await r.json();
+        if (!["queued", "running"].includes(d.status)) { location.hash = "sections"; location.reload(); return; }
+      } catch (_) {}
+      setTimeout(poll, 3000);
+    };
+    setTimeout(poll, 3000);
+  }
+
   // ---------- Tabs ----------
   const tabs = document.querySelectorAll(".tabs [data-tab]");
   function showTab(name) {

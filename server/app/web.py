@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import services
+from . import section_jobs, services
 from .deps import (
     check_csrf,
     csrf_token,
@@ -139,6 +139,7 @@ async def create_song_from_zip(
         if not created:
             services.delete_song(db, library_dir, song)
             continue
+        section_jobs.maybe_queue_after_upload(request.app.state, db, song)
         made.append(song)
     if fetch:
         status = 422 if errors and not made else 200
@@ -162,6 +163,7 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         song=song,
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
+        has_guide=section_jobs.has_guide(song),
         tab="chart" if request.query_params.get("tab") == "chart" else "mix",
         transpose_options=[
             (n, services.transpose_key(song.key, n)) for n in range(-services.MAX_TRANSPOSE, services.MAX_TRANSPOSE + 1)
@@ -230,6 +232,8 @@ async def upload_tracks(
 ):
     song = owned_song(song_id, user, db)
     created, errors = await services.add_tracks(db, get_settings(request).library_dir, song, files)
+    if created:
+        section_jobs.maybe_queue_after_upload(request.app.state, db, song)
     if request.headers.get("x-requested-with") == "fetch":
         status = 422 if errors and not created else 200
         return JSONResponse({"created": [t.id for t in created], "errors": errors}, status_code=status)
@@ -246,6 +250,8 @@ async def save_tracks(song_id: int, request: Request, user: User = Depends(web_u
         removed = services.save_tracks(db, get_settings(request).library_dir, song, form)
     except services.ValidationError as exc:
         return redirect(f"/songs/{song.id}#tracks", ("error", f"Nothing was saved: {exc}"), request)
+    if not song.sections_status:
+        section_jobs.maybe_queue_after_upload(request.app.state, db, song)  # e.g. a track was just marked Guide
     msg = "Tracks saved." + (f" Removed {removed}." if removed else "")
     return redirect(f"/songs/{song.id}#tracks", ("ok", msg), request)
 
@@ -357,6 +363,31 @@ def add_section(
         services.add_section(db, song, name, start)
     except services.ValidationError as exc:
         return redirect(f"/songs/{song.id}#sections", ("error", str(exc)), request)
+    return redirect(f"/songs/{song.id}#sections")
+
+
+@router.post("/songs/{song_id}/sections/detect", dependencies=[Depends(check_csrf)])
+def detect_sections(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    song = owned_song(song_id, user, db)
+    if not section_jobs.has_guide(song):
+        return redirect(f"/songs/{song.id}#sections", ("error", "Mark one track as Guide first."), request)
+    section_jobs.queue(request.app.state, db, song)
+    return redirect(f"/songs/{song.id}#sections")
+
+
+@router.get("/songs/{song_id}/sections/status")
+def sections_status(song_id: int, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    song = owned_song(song_id, user, db)
+    return {"status": song.sections_status, "note": song.sections_note, "count": len(song.sections)}
+
+
+@router.post("/songs/{song_id}/sections/clear-auto", dependencies=[Depends(check_csrf)])
+def clear_auto_sections(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    song = owned_song(song_id, user, db)
+    for sec in [s for s in song.sections if s.source == "auto"]:
+        db.delete(sec)
+    song.sections_status, song.sections_note = "", ""
+    db.commit()
     return redirect(f"/songs/{song.id}#sections")
 
 

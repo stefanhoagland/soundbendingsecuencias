@@ -30,11 +30,33 @@ def wav():
     return make_wav
 
 
+class FakeTranscriber:
+    """Stands in for Whisper: returns whatever words a test sets."""
+
+    def __init__(self):
+        self.words = []
+        self.calls = 0
+
+    def transcribe(self, path):
+        self.calls += 1
+        return list(self.words)
+
+
+class SyncJobs:
+    """Runs background jobs inline (and skips their start delay) so tests are deterministic."""
+
+    def submit(self, fn, state, song_id, *_delay):
+        fn(state, song_id, 0.0)
+
+
 @pytest.fixture
 def app(tmp_path, monkeypatch):
     monkeypatch.setenv("SBS_ADMIN_PASSWORD", "admin-pass-123")
     monkeypatch.delenv("SBS_SECRET_KEY", raising=False)
-    return create_app(load_settings(tmp_path / "data"))
+    application = create_app(load_settings(tmp_path / "data"))
+    application.state.transcriber = FakeTranscriber()
+    application.state.jobs = SyncJobs()
+    return application
 
 
 @pytest.fixture

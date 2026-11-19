@@ -29,7 +29,7 @@ def test_song_manifest_round_trip(api, wav):
     assert m["bpm"] == 63 and m["key"] == "Ab"
     assert m["transpose"] == 0 and m["play_key"] == "Ab" and m["chart"] == ""
     assert m["duration_seconds"] == 2.0
-    assert m["sections"] == [{"id": m["sections"][0]["id"], "name": "Verse 1", "start_seconds": 12.5, "color": ""}]
+    assert m["sections"] == [{"id": m["sections"][0]["id"], "name": "Verse 1", "start_seconds": 12.5, "color": "", "source": "manual"}]
     ag = m["tracks"][1]
     assert ag["gain_db"] == -4.5 and ag["pan"] == -0.3
     assert len(ag["sha256"]) == 64
