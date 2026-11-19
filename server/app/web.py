@@ -21,7 +21,7 @@ from .deps import (
     web_admin,
     web_user,
 )
-from .models import CHURCH_ROLES, TRACK_ROLES, ApiToken, Church, Song, User
+from .models import CHURCH_ROLES, TRACK_ROLES, ApiToken, Church, Setlist, Song, User
 from .security import new_api_token, verify_password
 from .storage import track_path
 
@@ -136,7 +136,19 @@ def church_library(slug: str, request: Request, q: str = "", user: User = Depend
     if user.is_admin:
         request.session["church"] = {"id": church.id, "slug": church.slug, "name": church.name}
     songs = services.list_songs(db, user, q, church)
-    return render(request, "library.html", user, songs=songs, q=q, church=church, can_add=can_add_songs(user))
+    upcoming, past = services.church_setlists(db, church, shared_only=user.practice_only)
+    return render(
+        request,
+        "library.html",
+        user,
+        songs=songs,
+        q=q,
+        church=church,
+        can_add=can_add_songs(user),
+        upcoming=upcoming,
+        past=past[:3],
+        setlist_label=services.setlist_label,
+    )
 
 
 @router.get("/songs/new")
@@ -218,11 +230,26 @@ async def create_song_from_zip(
 def song_page(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
     song = owned_song(song_id, user, db, edit=False)
     church = song.church
+    in_set = None
+    sid = request.query_params.get("setlist", "")
+    if sid.isdigit():
+        setlist = db.get(Setlist, int(sid))
+        if setlist is not None and can_see_setlist(user, setlist):
+            ids = [i.song_id for i in setlist.items]
+            if song.id in ids:
+                n = ids.index(song.id)
+                in_set = {
+                    "setlist": setlist,
+                    "index": n,
+                    "prev": setlist.items[n - 1].song if n > 0 else None,
+                    "next": setlist.items[n + 1].song if n + 1 < len(ids) else None,
+                }
     return render(
         request,
         "song.html",
         user,
         song=song,
+        in_set=in_set,
         editable=can_edit(user, song),
         back_url=library_url(church),
         roles=TRACK_ROLES,
@@ -708,3 +735,103 @@ def remove_member(
     db.delete(member)
     db.commit()
     return redirect(url, ("ok", f"Removed {member.username}."), request)
+
+
+
+# ---- setlists ---------------------------------------------------------------
+
+
+def can_see_setlist(user: User, setlist: Setlist) -> bool:
+    if user.is_admin:
+        return True
+    if user.church_id != setlist.church_id:
+        return False
+    return setlist.shared or user.is_leader
+
+
+def setlist_for(setlist_id: int, user: User, db: Session, *, manage: bool) -> Setlist:
+    setlist = db.get(Setlist, setlist_id)
+    if setlist is None or not can_see_setlist(user, setlist):
+        raise HTTPException(404, "Setlist not found")
+    if manage and not (user.is_admin or user.is_leader):
+        raise HTTPException(403, "Only church leaders can change setlists")
+    return setlist
+
+
+@router.get("/c/{slug}/setlists")
+def setlists_page(slug: str, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    church = church_for_manager(slug, user, db)
+    upcoming, past = services.church_setlists(db, church, shared_only=False)
+    return render(
+        request,
+        "setlists.html",
+        user,
+        church=church,
+        upcoming=upcoming,
+        past=past,
+        setlist_label=services.setlist_label,
+        default_date=services.next_sunday().isoformat(),
+    )
+
+
+@router.post("/c/{slug}/setlists", dependencies=[Depends(check_csrf)])
+def create_setlist(
+    slug: str,
+    request: Request,
+    name: str = Form(""),
+    service_date: str = Form(""),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    church = church_for_manager(slug, user, db)
+    try:
+        setlist = services.create_setlist(db, church, name, service_date)
+    except services.ValidationError as exc:
+        return redirect(f"/c/{church.slug}/setlists", ("error", str(exc)), request)
+    return redirect(f"/setlists/{setlist.id}", ("ok", "Setlist created. Add songs, then share it with your members."), request)
+
+
+@router.get("/setlists/{setlist_id}")
+def setlist_page(setlist_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    setlist = setlist_for(setlist_id, user, db, manage=False)
+    manage = user.is_admin or user.is_leader
+    library = services.list_songs(db, user, "", setlist.church) if manage else []
+    return render(
+        request,
+        "setlist.html",
+        user,
+        setlist=setlist,
+        church=setlist.church,
+        manage=manage,
+        library=library,
+        label=services.setlist_label(setlist),
+    )
+
+
+@router.post("/setlists/{setlist_id}", dependencies=[Depends(check_csrf)])
+async def save_setlist(setlist_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    setlist = setlist_for(setlist_id, user, db, manage=True)
+    form = await request.form()
+    try:
+        services.save_setlist(
+            db,
+            setlist,
+            name=form.get("name", ""),
+            service_date=form.get("service_date", ""),
+            notes=form.get("notes", ""),
+            song_ids=form.getlist("song"),
+            shared=form.get("shared") is not None,
+        )
+    except services.ValidationError as exc:
+        return redirect(f"/setlists/{setlist.id}", ("error", str(exc)), request)
+    msg = "Saved and shared with members." if setlist.shared else "Saved as a draft. Members can't see it yet."
+    return redirect(f"/setlists/{setlist.id}", ("ok", msg), request)
+
+
+@router.post("/setlists/{setlist_id}/delete", dependencies=[Depends(check_csrf)])
+def delete_setlist(setlist_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    setlist = setlist_for(setlist_id, user, db, manage=True)
+    slug, name = setlist.church.slug, setlist.name
+    db.delete(setlist)
+    db.commit()
+    return redirect(f"/c/{slug}/setlists", ("ok", f"Deleted “{name}”."), request)

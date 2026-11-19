@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -29,6 +29,9 @@ class Church(Base):
 
     members: Mapped[list[User]] = relationship(back_populates="church", order_by="User.username")
     songs: Mapped[list[Song]] = relationship(back_populates="church", foreign_keys="Song.church_id")
+    setlists: Mapped[list[Setlist]] = relationship(
+        back_populates="church", cascade="all, delete-orphan", order_by="Setlist.service_date.desc()"
+    )
 
 
 class User(Base):
@@ -162,3 +165,42 @@ class Section(Base):
     source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
 
     song: Mapped[Song] = relationship(back_populates="sections")
+
+
+class Setlist(Base):
+    """An ordered list of a church's songs for a service. Members see it once a leader shares it."""
+
+    __tablename__ = "setlists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    church_id: Mapped[int] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    service_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    church: Mapped[Church] = relationship(back_populates="setlists")
+    items: Mapped[list[SetlistItem]] = relationship(
+        back_populates="setlist", cascade="all, delete-orphan", order_by="SetlistItem.position"
+    )
+
+    @property
+    def songs(self) -> list[Song]:
+        return [i.song for i in self.items]
+
+    @property
+    def duration_seconds(self) -> float:
+        return sum(i.song.duration_seconds for i in self.items)
+
+
+class SetlistItem(Base):
+    __tablename__ = "setlist_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    setlist_id: Mapped[int] = mapped_column(ForeignKey("setlists.id", ondelete="CASCADE"), index=True)
+    song_id: Mapped[int] = mapped_column(ForeignKey("songs.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    setlist: Mapped[Setlist] = relationship(back_populates="items")
+    song: Mapped[Song] = relationship()

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Setlists · {{ church.name }}{% endblock %}
+{% block main_class %}page narrow{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Setlists</h1>
+    <p class="muted small">Build the songs for a service, then share it. Members see shared setlists at the top of their Practice page.</p>
+  </div>
+</div>
+<section class="card stack">
+  <h2>New setlist</h2>
+  <form method="post" action="/c/{{ church.slug }}/setlists" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Name <input name="name" placeholder="Sunday"></label>
+    <label>Date <input type="date" name="service_date" value="{{ default_date }}"></label>
+    <div class="row end grow"><button class="primary">Create</button></div>
+  </form>
+</section>
+{% for title, lists in [('Coming up', upcoming), ('Past', past)] if lists %}
+<section class="card">
+  <h2>{{ title }}</h2>
+  <ul class="setlist-rows">
+    {% for sl in lists %}
+    <li>
+      <a href="/setlists/{{ sl.id }}"><strong>{{ sl.name }}</strong> <span class="muted">{{ setlist_label(sl) }}</span></a>
+      <span class="muted small">{{ sl.items|length }} songs · {{ sl.duration_seconds|duration }}</span>
+      {% if sl.shared %}<span class="badge shared">Shared</span>{% else %}<span class="badge draft">Draft</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

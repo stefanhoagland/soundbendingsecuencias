@@ -36,6 +36,15 @@
 </div>
 {% if practice %}{% if song.sections %}<div class="practice-sections">{% for sec in song.sections %}<button type="button" class="chip" data-time="{{ sec.start_seconds }}">{{ sec.name }}</button>{% endfor %}</div>{% endif %}
 {% elif not editable %}<p class="muted small catalog-note">You can play and download this song. Ask a church leader to make changes.</p>{% endif %}
+{% if in_set %}
+<nav class="setlist-bar">
+  <a href="/setlists/{{ in_set.setlist.id }}" class="setlist-bar-name">☰ {{ in_set.setlist.name }} · {{ in_set.index + 1 }} of {{ in_set.setlist.items|length }}</a>
+  <span class="actions">
+    {% if in_set.prev %}<a class="button small" href="/songs/{{ in_set.prev.id }}?setlist={{ in_set.setlist.id }}">← {{ in_set.prev.title }}</a>{% endif %}
+    {% if in_set.next %}<a class="button small primary" href="/songs/{{ in_set.next.id }}?setlist={{ in_set.setlist.id }}">{{ in_set.next.title }} →</a>{% endif %}
+  </span>
+</nav>
+{% endif %}
 {% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
 
 <nav class="tabs" role="tablist">

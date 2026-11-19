@@ -244,3 +244,28 @@ fieldset#tracks-fields:disabled input[type=checkbox] { appearance: auto; -webkit
 .chip { font-size: .8rem; padding: 4px 10px; border-radius: 999px; }
 .active-tab { color: var(--accent-2); }
 @media (max-width: 600px) { .practice-list a { grid-template-columns: 36px 1fr auto; } .practice-list a > :nth-child(4), .practice-list a > :nth-child(5) { display: none; } }
+
+/* setlists */
+.setlist-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.setlist-card { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: inherit; }
+.setlist-card:hover { border-color: var(--accent); }
+.setlist-card.next { border-color: var(--accent); background: linear-gradient(180deg, rgba(255,122,61,.12), var(--panel) 70%); }
+.setlist-card.past { opacity: .75; }
+.setlist-when { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent-2); }
+.setlist-mini { margin: 4px 0 0; padding-left: 1.3em; font-size: .9rem; display: grid; gap: 2px; }
+.list-heading { margin-top: 8px; }
+.setlist-rows { list-style: none; margin: 0; padding: 0; }
+.setlist-rows li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.setlist-rows li a { flex: 1; color: inherit; }
+.badge { font-size: .72rem; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+.badge.shared { background: rgba(80, 200, 120, .15); color: #6fdc9a; }
+.badge.draft { background: var(--panel-2); color: var(--muted); }
+.setlist-edit { margin: 0; padding-left: 1.6em; display: grid; gap: 6px; }
+.setlist-edit li { padding: 6px 0; }
+.setlist-edit li > * { vertical-align: middle; }
+.sl-title { display: inline-block; min-width: 60%; }
+.share-row { align-items: center; }
+.grow { flex: 1; }
+.numbered .play-dot { font-weight: 700; }
+.setlist-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 14px; border-radius: 10px; background: var(--panel); border: 1px solid var(--accent); }
+.setlist-bar-name { color: var(--accent-2); font-weight: 600; }

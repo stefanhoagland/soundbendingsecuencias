@@ -184,3 +184,52 @@ def test_members_get_a_practice_only_view(app, web, wav):
     # Leaders still get the full page
     full = leader.get(f"/songs/{song_id}").text
     assert 'id="tracks"' in full and "practice-list" not in leader.get("/c/iglesia-central").text
+
+
+def test_setlists_leaders_build_and_share(app, web, wav):
+    setup_church(web)
+    leader = sign_in(app, "pastor", "leader-pass-1")
+    a = make_song(leader, "Santo", wav)
+    b = make_song(leader, "Digno", wav)
+    leader.post(
+        "/c/iglesia-central/members",
+        data={"username": "musico", "password": "member-pass-1", "role": "member", "csrf": leader.csrf},
+    )
+    member = sign_in(app, "musico", "member-pass-1")
+    assert member.get("/c/iglesia-central/setlists").status_code == 404
+
+    r = leader.post("/c/iglesia-central/setlists", data={"name": "Domingo", "service_date": "2099-01-04", "csrf": leader.csrf}, follow_redirects=False)
+    sl = int(r.headers["location"].rsplit("/", 1)[1])
+    data = {"name": "Domingo", "service_date": "2099-01-04", "notes": "Llegar 8:30", "song": [str(b), str(a)], "csrf": leader.csrf}
+    leader.post(f"/setlists/{sl}", data=data)
+
+    # Draft: members can't see it
+    assert "Domingo" not in member.get("/c/iglesia-central").text
+    assert member.get(f"/setlists/{sl}").status_code == 404
+
+    leader.post(f"/setlists/{sl}", data={**data, "shared": "on"})
+    practice = member.get("/c/iglesia-central").text
+    assert "Next up" in practice and "Domingo" in practice
+    page = member.get(f"/setlists/{sl}").text
+    assert page.index("Digno") < page.index("Santo") and "Llegar 8:30" in page and "add-song" not in page
+    assert member.post(f"/setlists/{sl}", data={**data, "song": [str(a)], "csrf": member.csrf}).status_code == 403
+
+    song = member.get(f"/songs/{b}?setlist={sl}").text
+    assert "1 of 2" in song and f"/songs/{a}?setlist={sl}" in song
+
+    # Other churches' songs can't be added
+    setup_church(web, "Otra Iglesia", "otro")
+    other = sign_in(app, "otro", "leader-pass-1")
+    foreign = make_song(other, "Ajena", wav)
+    r = leader.post(f"/setlists/{sl}", data={**data, "song": [str(foreign)]})
+    assert "isn" in r.text  # "isn't in this church's library"
+
+    # API
+    c = TestClient(app)
+    token = c.post("/api/auth/token", json={"username": "musico", "password": "member-pass-1", "device_name": "Mac"}).json()["token"]
+    lists = c.get("/api/setlists", headers={"Authorization": f"Bearer {token}"}).json()["setlists"]
+    assert [s["title"] for s in lists[0]["songs"]] == ["Digno", "Santo"]
+
+    # Deleting a song drops it from the setlist
+    leader.post(f"/songs/{b}/delete", data={"csrf": leader.csrf})
+    assert "Digno" not in member.get(f"/setlists/{sl}").text

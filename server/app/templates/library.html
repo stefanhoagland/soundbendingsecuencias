@@ -13,6 +13,26 @@
     </form>
   </div>
 </div>
+{% if upcoming or past %}
+<section class="setlist-cards">
+  {% for sl in upcoming %}
+  <a class="setlist-card{{ ' next' if loop.first }}" href="/setlists/{{ sl.id }}">
+    <span class="setlist-when">{{ 'Next up' if loop.first else 'Coming up' }}{% if sl.service_date %} · {{ setlist_label(sl) }}{% endif %}</span>
+    <strong>{{ sl.name }}</strong>
+    <ol class="setlist-mini">{% for s in sl.songs %}<li>{{ s.title }} <span class="muted">{{ s.play_key or s.key }}</span></li>{% endfor %}</ol>
+    {% if not sl.items %}<span class="muted small">No songs yet</span>{% endif %}
+  </a>
+  {% endfor %}
+  {% for sl in past %}
+  <a class="setlist-card past" href="/setlists/{{ sl.id }}">
+    <span class="setlist-when">{{ setlist_label(sl) }}</span>
+    <strong>{{ sl.name }}</strong>
+    <span class="muted small">{{ sl.items|length }} songs</span>
+  </a>
+  {% endfor %}
+</section>
+<h2 class="list-heading">All songs</h2>
+{% endif %}
 {% if songs %}
 <ul class="practice-list">
   {% for s in songs %}

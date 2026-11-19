@@ -241,3 +241,34 @@ def add_section(
     except services.ValidationError as exc:
         raise _bad_request(exc) from exc
     return song_manifest(request, song)
+
+
+
+# ---- setlists ---------------------------------------------------------------
+
+
+def setlist_json(sl) -> dict:
+    return {
+        "id": sl.id,
+        "name": sl.name,
+        "service_date": sl.service_date.isoformat() if sl.service_date else None,
+        "notes": sl.notes,
+        "shared": sl.shared,
+        "songs": [song_summary(i.song) for i in sl.items],
+    }
+
+
+@router.get("/setlists")
+def list_setlists(user: User = Depends(api_user), db: Session = Depends(get_db)):
+    """The church's setlists (members get only shared ones), soonest first then past."""
+    if user.church is None:
+        return {"setlists": []}
+    upcoming, past = services.church_setlists(db, user.church, shared_only=user.practice_only)
+    return {"setlists": [setlist_json(sl) for sl in upcoming + past]}
+
+
+@router.get("/setlists/{setlist_id}")
+def get_setlist(setlist_id: int, user: User = Depends(api_user), db: Session = Depends(get_db)):
+    from .web import setlist_for
+
+    return setlist_json(setlist_for(setlist_id, user, db, manage=False))
