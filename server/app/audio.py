@@ -28,6 +28,7 @@ class WavInfo:
     bit_depth: int
     sample_format: str  # "pcm" or "float"
     data_bytes: int
+    data_offset: int = 0
 
     @property
     def duration_seconds(self) -> float:
@@ -50,6 +51,7 @@ def read_wav_info(fh: BinaryIO) -> WavInfo:
 
     fmt: tuple[int, int, int, int] | None = None
     data_bytes: int | None = None
+    data_offset = 0
     ds64_data_size: int | None = None
 
     while True:
@@ -71,6 +73,7 @@ def read_wav_info(fh: BinaryIO) -> WavInfo:
                 tag = struct.unpack("<H", body[24:26])[0]
             fmt = (tag, channels, rate, bits)
         elif chunk_id == b"data":
+            data_offset = start
             if chunk_size == 0xFFFFFFFF and ds64_data_size is not None:
                 data_bytes = ds64_data_size
             else:
@@ -92,7 +95,7 @@ def read_wav_info(fh: BinaryIO) -> WavInfo:
         raise InvalidWav(f"Unsupported WAV encoding (format tag {tag:#06x}); export as PCM or float")
     if channels < 1 or rate < 1 or bits not in (8, 16, 24, 32, 64):
         raise InvalidWav("WAV header has invalid channel, rate or bit-depth values")
-    return WavInfo(rate, channels, bits, sample_format, data_bytes)
+    return WavInfo(rate, channels, bits, sample_format, data_bytes, data_offset)
 
 
 _ROLE_PATTERNS = [
@@ -113,3 +116,33 @@ def track_name_from_filename(filename: str) -> str:
     name = re.sub(r"\.[^.]+$", "", filename)
     name = re.sub(r"[_]+", " ", name).strip()
     return name or "Track"
+
+
+def read_mono(path, seconds: float | None = None):
+    """Return (samples as float32 numpy array in -1..1, mixed to mono, sample rate)."""
+    import numpy as np
+
+    with open(path, "rb") as fh:
+        info = read_wav_info(fh)
+        frame = info.channels * info.bit_depth // 8
+        nbytes = info.data_bytes
+        if seconds is not None:
+            nbytes = min(nbytes, int(seconds * info.sample_rate) * frame)
+        nbytes -= nbytes % frame
+        fh.seek(info.data_offset)
+        raw = fh.read(nbytes)
+    if info.sample_format == "float":
+        data = np.frombuffer(raw, dtype="<f4" if info.bit_depth == 32 else "<f8").astype(np.float32)
+    elif info.bit_depth == 8:
+        data = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128) / 128
+    elif info.bit_depth == 16:
+        data = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768
+    elif info.bit_depth == 24:
+        b = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
+        v = b[:, 0] | (b[:, 1] << 8) | (b[:, 2] << 16)
+        v = np.where(v & 0x800000, v - 0x1000000, v)
+        data = v.astype(np.float32) / 8388608
+    else:
+        data = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483648
+    data = data.reshape(-1, info.channels).mean(axis=1)
+    return data, info.sample_rate

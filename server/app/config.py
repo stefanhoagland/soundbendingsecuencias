@@ -19,6 +19,12 @@ class Settings:
     admin_username: str
     admin_password: str | None
     session_max_age: int
+    auto_sections: bool = True
+    whisper_model: str = "base.en"
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
 
     @property
     def db_path(self) -> Path:
@@ -60,4 +66,6 @@ def load_settings(data_dir: str | Path | None = None) -> Settings:
         admin_username=os.environ.get("SBS_ADMIN_USERNAME", "admin"),
         admin_password=os.environ.get("SBS_ADMIN_PASSWORD") or None,
         session_max_age=int(os.environ.get("SBS_SESSION_DAYS", "30")) * 86400,
+        auto_sections=os.environ.get("SBS_AUTO_SECTIONS", "1").lower() not in ("0", "false", "no", "off"),
+        whisper_model=os.environ.get("SBS_WHISPER_MODEL", "base.en"),
     )

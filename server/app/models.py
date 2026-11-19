@@ -60,6 +60,9 @@ class Song(Base):
     chart: Mapped[str] = mapped_column(Text, default="", server_default="")
     # Semitones to shift the song by when playing (chart and audio); key stays the original key.
     transpose: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Section detection from the guide track: "", queued, running, done, none, failed, no_guide
+    sections_status: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    sections_note: Mapped[str] = mapped_column(Text, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -124,5 +127,7 @@ class Section(Base):
     name: Mapped[str] = mapped_column(String(128))
     start_seconds: Mapped[float] = mapped_column(Float, default=0.0)
     color: Mapped[str] = mapped_column(String(16), default="")
+    # "manual" (typed in) or "auto" (heard in the guide track)
+    source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
 
     song: Mapped[Song] = relationship(back_populates="sections")

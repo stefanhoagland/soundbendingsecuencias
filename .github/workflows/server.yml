@@ -25,10 +25,25 @@ jobs:
           node-version: "22"
       - run: node --test tests/*.test.js
 
+  whisper:
+    # Real speech-model check: espeak-ng speaks the cues, Whisper must hear them.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: sudo apt-get update -q && sudo apt-get install -y -q espeak-ng
+      - run: pip install -r requirements-dev.txt
+      - run: RUN_WHISPER=1 python -m pytest -q tests/test_guide.py -k real_whisper -rs
+
   image:
     # Publishes ghcr.io/<owner>/soundbending-secuencias for the Unraid template.
     if: github.event_name == 'push'
-    needs: test
+    needs: [test, whisper]
     runs-on: ubuntu-latest
     permissions:
       contents: read

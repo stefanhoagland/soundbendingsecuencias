@@ -6,6 +6,7 @@ LABEL org.opencontainers.image.source="https://github.com/stefanhoagland/soundbe
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     SBS_DATA_DIR=/data \
+    HF_HOME=/data/models/hf \
     PORT=8080
 
 WORKDIR /srv

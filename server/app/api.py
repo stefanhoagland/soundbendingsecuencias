@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import services
+from . import section_jobs, services
 from .deps import api_user, get_db, get_settings, owned_song, owned_track
 from .models import ApiToken, Song, Track, User
 from .security import new_api_token, verify_password
@@ -98,8 +98,9 @@ def song_manifest(request: Request, s: Song) -> dict:
         **song_summary(s),
         "notes": s.notes,
         "chart": s.chart,
+        "sections_status": s.sections_status,
         "sections": [
-            {"id": sec.id, "name": sec.name, "start_seconds": sec.start_seconds, "color": sec.color}
+            {"id": sec.id, "name": sec.name, "start_seconds": sec.start_seconds, "color": sec.color, "source": sec.source}
             for sec in s.sections
         ],
         "tracks": [track_json(request, t) for t in s.tracks],
@@ -191,6 +192,8 @@ async def upload_tracks(
 ):
     song = owned_song(song_id, user, db)
     created, errors = await services.add_tracks(db, get_settings(request).library_dir, song, files)
+    if created:
+        section_jobs.maybe_queue_after_upload(request.app.state, db, song)
     if errors and not created:
         raise HTTPException(422, "; ".join(errors))
     return {"tracks": [track_json(request, t) for t in created], "errors": errors}

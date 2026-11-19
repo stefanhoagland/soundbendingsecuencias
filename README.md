@@ -16,6 +16,7 @@ A private, self-hosted home for your multitracks, plus (coming next) a Mac app t
 - **Drop a ZIP of stems on the library page to create a song in one go.** Name it like `Way Maker - E - 68bpm.zip` and the title, key and BPM are filled in. ZIPs can also be dropped on an existing song. Folders inside the ZIP and macOS `__MACOSX` junk are ignored, and tracks are ordered by filename (1, 2, 10).
 - Drag in WAV stems (16/24/32-bit, PCM or float, any sample rate, mono or stereo). Files named *click* or *guide* / *cues* are tagged automatically.
 - Set each track's default name, role, gain, pan and mute. The Mac app will start from these.
+- **Sections from the guide track**: when you upload stems that include a guide track (a file named "guide" or "cues", or any track you mark as Guide), the server listens to it and adds section markers for the cues it hears ("Verse one", "Chorus", "Bridge"…), snapped to the bar using the BPM and click. They're tagged *auto*; your own markers are never touched. Use **Detect from guide** to run it again. Speech recognition runs on your server (Whisper via faster-whisper); the first run downloads the ~140 MB model into `models/` in your data folder, so the server needs internet once.
 - Add section markers (Intro, Verse 1, Chorus…) by typing a time or grabbing the preview player's position.
 - **Change key**: pick a new key from the song header and the chord chart and preview audio shift with it (click and guide tracks stay untouched). The choice is saved with the song and included in what the Mac app downloads.
 - **Chord chart tab**: paste or type a chart with chords above the lyrics or inline ChordPro (`Way[E]maker`), with section headings, a live preview while editing, text size, and print.
@@ -60,6 +61,8 @@ docker compose up -d --build
 | `SBS_ADMIN_PASSWORD` | *(generated)* | Password for that first account |
 | `SBS_SECRET_KEY` | *(generated, saved in the data folder)* | Signs login cookies |
 | `SBS_SESSION_DAYS` | `30` | How long you stay signed in |
+| `SBS_AUTO_SECTIONS` | `1` | Listen to guide tracks after upload and add section markers. `0` turns it off (the Detect button still works) |
+| `SBS_WHISPER_MODEL` | `base.en` | Speech model. `tiny.en` is faster, `small.en` is more accurate but slower |
 | `PORT` | `8080` | Port inside the container |
 
 The container runs as Unraid's `nobody:users` (99:100), so files it writes are owned the same way as the rest of your shares.

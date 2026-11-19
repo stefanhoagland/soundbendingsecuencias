@@ -14,4 +14,6 @@
   <Config Name="Library data" Target="/data" Default="/mnt/user/appdata/soundbending-secuencias" Mode="rw" Description="Database and all uploaded audio. Point this at a share with plenty of space." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/soundbending-secuencias</Config>
   <Config Name="Admin username" Target="SBS_ADMIN_USERNAME" Default="admin" Mode="" Description="First account, created on first start only" Type="Variable" Display="always" Required="false" Mask="false">admin</Config>
   <Config Name="Admin password" Target="SBS_ADMIN_PASSWORD" Default="" Mode="" Description="Password for the first account (first start only). Leave blank to have one generated and printed in the container log." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Auto sections from guide" Target="SBS_AUTO_SECTIONS" Default="1" Mode="" Description="1 = listen to guide tracks after upload and add section markers. 0 = off." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+  <Config Name="Speech model" Target="SBS_WHISPER_MODEL" Default="base.en" Mode="" Description="tiny.en (fastest), base.en (default), small.en (most accurate, slower)" Type="Variable" Display="advanced" Required="false" Mask="false">base.en</Config>
 </Container>
