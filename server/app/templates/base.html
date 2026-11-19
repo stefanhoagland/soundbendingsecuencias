@@ -15,7 +15,7 @@
         <a href="/c/{{ nav_church.slug }}" class="active-tab">Practice</a>
       {% elif nav_church %}
         <a href="/c/{{ nav_church.slug }}">{{ nav_church.name }}</a>
-        {% if nav_church.leader %}<a href="/c/{{ nav_church.slug }}/members">Members</a>{% endif %}
+        {% if nav_church.leader %}<a href="/c/{{ nav_church.slug }}/setlists">Setlists</a><a href="/c/{{ nav_church.slug }}/members">Members</a>{% endif %}
         {% if user.is_admin %}<a href="/">My library</a>{% endif %}
       {% else %}
         <a href="/">Library</a>

@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import date, timedelta
 import zipfile
 from pathlib import Path, PurePosixPath
 
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .audio import InvalidWav, guess_role, track_name_from_filename
 from .music import transpose_key
 from .track_names import clean_name, picker_names, role_for_name  # noqa: F401  (re-exported)
-from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Song, Track, User
+from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Setlist, SetlistItem, Song, Track, User
 from .security import hash_password
 from .storage import delete_song_dir, delete_track_file, save_fileobj, save_upload
 
@@ -343,6 +344,7 @@ def delete_track(db: Session, library_dir: Path, track: Track) -> None:
 
 def delete_song(db: Session, library_dir: Path, song: Song) -> None:
     song_id = song.id
+    db.execute(delete(SetlistItem).where(SetlistItem.song_id == song_id))
     db.delete(song)
     db.commit()
     delete_song_dir(library_dir, song_id)
@@ -442,3 +444,62 @@ def delete_church(db: Session, library_dir, church: Church) -> None:
     db.delete(church)
     db.commit()
 
+
+
+# ---- setlists ---------------------------------------------------------------
+
+
+def next_sunday(today: date | None = None) -> date:
+    today = today or date.today()
+    return today + timedelta(days=(6 - today.weekday()) % 7)
+
+
+def parse_date(text) -> date | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError as exc:
+        raise ValidationError("Use a date like 2026-11-22") from exc
+
+
+def setlist_label(setlist: Setlist) -> str:
+    return setlist.service_date.strftime("%A %b %-d") if setlist.service_date else ""
+
+
+def create_setlist(db: Session, church: Church, name: str = "", service_date=None) -> Setlist:
+    when = parse_date(service_date) if service_date else next_sunday()
+    name = (name or "").strip() or ("Sunday" if when and when.weekday() == 6 else "Setlist")
+    setlist = Setlist(church=church, name=name[:128], service_date=when)
+    db.add(setlist)
+    db.commit()
+    return setlist
+
+
+def save_setlist(db: Session, setlist: Setlist, *, name, service_date, notes, song_ids, shared: bool) -> None:
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("Give the setlist a name")
+    when = parse_date(service_date)
+    ids = [int(i) for i in song_ids if str(i).isdigit()]
+    songs = {s.id: s for s in db.scalars(select(Song).where(Song.id.in_(ids), Song.church_id == setlist.church_id))}
+    if any(i not in songs for i in ids):
+        raise ValidationError("A song in the list isn't in this church's library")
+    setlist.name, setlist.service_date, setlist.notes, setlist.shared = name[:128], when, (notes or "").strip(), shared
+    setlist.items = [SetlistItem(song_id=i, position=n) for n, i in enumerate(ids)]
+    db.commit()
+
+
+def church_setlists(db: Session, church: Church, *, shared_only: bool) -> tuple[list[Setlist], list[Setlist]]:
+    """(upcoming soonest first, past most recent first). Undated lists count as upcoming."""
+    stmt = select(Setlist).where(Setlist.church_id == church.id)
+    if shared_only:
+        stmt = stmt.where(Setlist.shared.is_(True))
+    today = date.today()
+    lists = list(db.scalars(stmt))
+    upcoming = sorted((s for s in lists if not s.service_date or s.service_date >= today),
+                      key=lambda s: (s.service_date or date.max, s.id))
+    past = sorted((s for s in lists if s.service_date and s.service_date < today),
+                  key=lambda s: s.service_date, reverse=True)
+    return upcoming, past
