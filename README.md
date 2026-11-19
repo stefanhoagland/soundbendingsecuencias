@@ -13,6 +13,7 @@ A private, self-hosted home for your multitracks, plus (coming next) a Mac app t
 
 - Sign in with your own account. Admins can add more people, and each person gets a private library.
 - Create a song with title, artist, BPM, key, time signature and notes.
+- **Drop a ZIP of stems on the library page to create a song in one go.** Name it like `Way Maker - E - 68bpm.zip` and the title, key and BPM are filled in. ZIPs can also be dropped on an existing song. Folders inside the ZIP and macOS `__MACOSX` junk are ignored, and tracks are ordered by filename (1, 2, 10).
 - Drag in WAV stems (16/24/32-bit, PCM or float, any sample rate, mono or stereo). Files named *click* or *guide* / *cues* are tagged automatically.
 - Set each track's default name, role, gain, pan and mute. The Mac app will start from these.
 - Add section markers (Intro, Verse 1, Chorus…) by typing a time or grabbing the preview player's position.

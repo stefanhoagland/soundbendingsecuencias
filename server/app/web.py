@@ -113,6 +113,45 @@ def create_song(
     return redirect(f"/songs/{song.id}", ("ok", "Song created. Now add its stems."), request)
 
 
+@router.post("/songs/from-zip", dependencies=[Depends(check_csrf)])
+async def create_song_from_zip(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    """Create one song per uploaded ZIP, named from the file (title, key and BPM if present)."""
+    fetch = request.headers.get("x-requested-with") == "fetch"
+    library_dir = get_settings(request).library_dir
+    made, errors = [], []
+    for upload in files:
+        name = upload.filename or "Untitled.zip"
+        if not services.is_zip_upload(upload):
+            errors.append(f"{name}: not a ZIP file")
+            continue
+        fields = services.song_fields_from_filename(name)
+        song = Song(owner_id=user.id, title="")
+        services.apply_song_fields(song, artist="", time_signature="4/4", notes="", **fields)
+        db.add(song)
+        db.commit()
+        created, errs = await services.add_tracks(db, library_dir, song, [upload])
+        errors += errs
+        if not created:
+            services.delete_song(db, library_dir, song)
+            continue
+        made.append(song)
+    if fetch:
+        status = 422 if errors and not made else 200
+        return JSONResponse(
+            {"songs": [{"id": s.id, "title": s.title, "url": f"/songs/{s.id}"} for s in made], "errors": errors},
+            status_code=status,
+        )
+    if len(made) == 1 and not errors:
+        return redirect(f"/songs/{made[0].id}", ("ok", f"Created “{made[0].title}” with {len(made[0].tracks)} tracks."), request)
+    msg = f"Created {len(made)} song(s)." + (" " + " ".join(errors) if errors else "")
+    return redirect("/", ("error" if errors else "ok", msg), request)
+
+
 @router.get("/songs/{song_id}")
 def song_page(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
     song = owned_song(song_id, user, db)

@@ -10,6 +10,17 @@
   </div>
 </div>
 
+<form id="zip-upload" class="dropzone compact" method="post" action="/songs/from-zip" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input id="zip-files" type="file" name="files" accept=".zip,application/zip" multiple>
+  <label for="zip-files">
+    <strong>Drop a ZIP of stems to create a song</strong> or click to choose. Drop several ZIPs to add several songs.<br>
+    <span class="muted small">Name it like “Way Maker - E - 68bpm.zip” and the title, key and BPM are filled in for you.</span>
+  </label>
+  <noscript><button class="primary">Upload</button></noscript>
+</form>
+<ul id="zip-list" class="upload-list"></ul>
+
 {% if songs %}
 <table class="songs">
   <thead><tr><th>Title</th><th>Artist</th><th>Key</th><th>BPM</th><th>Length</th><th>Tracks</th><th>Size</th></tr></thead>
@@ -36,4 +47,7 @@
   <a class="button primary" href="/songs/new">+ New song</a>
 </div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='library.js') }}"></script>
 {% endblock %}
