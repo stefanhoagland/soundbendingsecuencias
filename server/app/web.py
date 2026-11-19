@@ -40,7 +40,14 @@ def render(request: Request, name: str, user: User | None, status_code: int = 20
     return templates.TemplateResponse(
         request,
         name,
-        {"user": user, "csrf": csrf_token(request), "flash": flash, "nav_church": nav_church, **ctx},
+        {
+            "user": user,
+            "csrf": csrf_token(request),
+            "flash": flash,
+            "nav_church": nav_church,
+            "practice": bool(user and user.practice_only),
+            **ctx,
+        },
         status_code=status_code,
     )
 

@@ -1,5 +1,36 @@
 {% extends "base.html" %}
+{% block title %}{{ 'Practice' if practice else 'Library' }}{% endblock %}
 {% block content %}
+{% if practice %}
+<div class="page-head">
+  <div>
+    <h1>Practice</h1>
+    <p class="muted small">{{ church.name }} · pick a song to rehearse</p>
+  </div>
+  <div class="actions">
+    <form method="get" action="/c/{{ church.slug }}" class="search">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search songs">
+    </form>
+  </div>
+</div>
+{% if songs %}
+<ul class="practice-list">
+  {% for s in songs %}
+  <li><a href="/songs/{{ s.id }}">
+    <span class="play-dot">▶</span>
+    <span class="practice-title"><strong>{{ s.title }}</strong>{% if s.artist %}<span class="muted small">{{ s.artist }}</span>{% endif %}</span>
+    <span class="pill">{{ s.play_key or s.key or '–' }}</span>
+    <span class="muted small">{{ '%g'|format(s.bpm) ~ ' BPM' if s.bpm else '' }}</span>
+    <span class="muted small">{{ s.duration_seconds|duration }}</span>
+  </a></li>
+  {% endfor %}
+</ul>
+{% elif q %}
+<p class="empty">No songs match “{{ q }}”.</p>
+{% else %}
+<div class="empty card"><h2>No songs yet</h2><p>Your leaders haven't added any songs yet.</p></div>
+{% endif %}
+{% else %}
 <div class="page-head">
   <div>
     <h1>{{ church.name if church else 'Library' }}</h1>
@@ -55,6 +86,7 @@
   <p>Your church leader hasn't added any songs yet.</p>
   {% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
 {% block scripts %}

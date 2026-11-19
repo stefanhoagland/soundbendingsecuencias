@@ -11,7 +11,9 @@
   <header class="topbar">
     <a class="brand" href="/">Soundbending <span>Secuencias</span></a>
     <nav>
-      {% if nav_church %}
+      {% if practice %}
+        <a href="/c/{{ nav_church.slug }}" class="active-tab">Practice</a>
+      {% elif nav_church %}
         <a href="/c/{{ nav_church.slug }}">{{ nav_church.name }}</a>
         {% if nav_church.leader %}<a href="/c/{{ nav_church.slug }}/members">Members</a>{% endif %}
         {% if user.is_admin %}<a href="/">My library</a>{% endif %}
