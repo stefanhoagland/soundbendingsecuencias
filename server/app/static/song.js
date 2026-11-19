@@ -228,7 +228,7 @@
     pan: parseFloat(el.dataset.pan) || 0,
     muted: el.dataset.muted === "1",
     solo: false,
-    buffer: null, source: null, gain: null, panner: null,
+    buffer: null, source: null, gain: null, panner: null, analyser: null,
   }));
 
   const position = () => (playing ? offset + (ctx.currentTime - startedAt) : offset);
@@ -303,6 +303,9 @@
       s.panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
       if (s.panner) { s.gain.connect(s.panner); s.panner.pan.value = s.pan; }
       (s.panner || s.gain).connect(s.pitched ? busses.pitched : busses.dry);
+      s.analyser = ctx.createAnalyser();
+      s.analyser.fftSize = 1024;
+      (s.panner || s.gain).connect(s.analyser);
     }
     applyMix();
   }
@@ -439,17 +442,69 @@
     document.getElementById("section-start").value = `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
   });
 
+  // Console-style fader law: 0 dB sits three quarters up, +12 at the top, -60 (off) at the bottom.
+  const MAX_DB = 12, MIN_DB = -60, UNITY = 0.75;
+  const dbToPos = (db) => (db >= 0 ? UNITY + (db / MAX_DB) * (1 - UNITY) : UNITY * (1 - Math.sqrt(Math.min(1, db / MIN_DB))));
+  const posToDb = (p) => (p >= UNITY ? ((p - UNITY) / (1 - UNITY)) * MAX_DB : MIN_DB * (1 - p / UNITY) ** 2);
+  const SCALE = [12, 6, 0, -5, -10, -20, -30, -40, -60];
+
+  function placeCap(s) {
+    const p = dbToPos(s.gainDb);
+    s.cap.style.top = `calc(.55rem + ${(1 - p).toFixed(4)} * (100% - 1.1rem))`;
+    s.fader.setAttribute("aria-valuenow", s.gainDb.toFixed(1));
+    s.dbLabel.textContent = s.gainDb <= MIN_DB + 0.05 ? "-∞" : `${s.gainDb >= 0 ? "+" : ""}${s.gainDb.toFixed(1)}`;
+  }
+
   for (const s of strips) {
-    const fader = s.el.querySelector(".fader");
-    const db = s.el.querySelector(".db");
+    s.fader = s.el.querySelector(".fader");
+    s.cap = s.el.querySelector(".fader-cap");
+    s.dbLabel = s.el.querySelector(".db");
+    s.meterFill = s.el.querySelector(".meter-fill");
+    s.meterPeak = s.el.querySelector(".meter-peak");
+    s.peakHold = 0; s.peakAt = 0; s.level = 0;
+    const scale = s.el.querySelector(".fader-scale");
+    scale.innerHTML = SCALE.map((db) => `<i class="${db === 0 ? "zero" : ""}" style="top:${((1 - dbToPos(db)) * 100).toFixed(2)}%"></i>`).join("");
+    placeCap(s);
+
+    const update = () => { if (ctx) applyMix(); else s.el.classList.toggle("silent", s.muted); };
+    const setDb = (db) => {
+      s.gainDb = Math.round(Math.max(MIN_DB, Math.min(MAX_DB, db)) * 10) / 10;
+      placeCap(s); update();
+    };
+    const fromPointer = (e) => {
+      const r = s.fader.getBoundingClientRect();
+      const inner = r.height - 17.6;  // minus the cap's travel margins (1.1rem)
+      const p = 1 - (e.clientY - r.top - 8.8) / inner;
+      return posToDb(Math.max(0, Math.min(1, p)));
+    };
+    let dragging = false, grabOffset = 0;
+    s.fader.addEventListener("pointerdown", (e) => {
+      s.fader.setPointerCapture(e.pointerId);
+      dragging = true;
+      // Grabbing the cap moves it relatively; clicking the slot jumps there.
+      const capR = s.cap.getBoundingClientRect();
+      grabOffset = (e.target.closest(".fader-cap")) ? e.clientY - (capR.top + capR.height / 2) : 0;
+      if (!grabOffset && !e.target.closest(".fader-cap")) setDb(fromPointer(e));
+      s.fader.focus();
+    });
+    s.fader.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      setDb(fromPointer({ clientY: e.clientY - grabOffset }));
+    });
+    const end = () => { dragging = false; };
+    s.fader.addEventListener("pointerup", end);
+    s.fader.addEventListener("pointercancel", end);
+    s.fader.addEventListener("dblclick", () => setDb(0));   // double-click = back to unity
+    s.fader.addEventListener("wheel", (e) => { e.preventDefault(); setDb(posToDb(Math.max(0, Math.min(1, dbToPos(s.gainDb) - e.deltaY * 0.0008)))); }, { passive: false });
+    s.fader.addEventListener("keydown", (e) => {
+      const step = e.shiftKey ? 0.1 : 0.02;
+      if (e.key === "ArrowUp") { e.preventDefault(); setDb(posToDb(Math.min(1, dbToPos(s.gainDb) + step))); }
+      if (e.key === "ArrowDown") { e.preventDefault(); setDb(posToDb(Math.max(0, dbToPos(s.gainDb) - step))); }
+      if (e.key === "0" || e.key === "Home") { e.preventDefault(); setDb(0); }
+    });
+
     const muteBtn = s.el.querySelector(".mute");
     const soloBtn = s.el.querySelector(".solo");
-    const update = () => { if (ctx) applyMix(); else s.el.classList.toggle("silent", s.muted); };
-    fader.addEventListener("input", () => {
-      s.gainDb = parseFloat(fader.value);
-      db.textContent = `${s.gainDb >= 0 ? "+" : ""}${s.gainDb.toFixed(1)} dB`;
-      update();
-    });
     muteBtn.addEventListener("click", () => { s.muted = !s.muted; muteBtn.classList.toggle("on", s.muted); update(); });
     soloBtn.addEventListener("click", () => {
       s.solo = !s.solo; soloBtn.classList.toggle("on", s.solo);
@@ -457,6 +512,29 @@
       else { const any = strips.some((x) => x.solo); strips.forEach((x) => x.el.classList.toggle("silent", any ? !x.solo : x.muted)); }
     });
   }
+
+  // ---------- Meters (post-fader peak, like a console) ----------
+  const meterBuf = new Float32Array(1024);
+  function drawMeters(now) {
+    for (const s of strips) {
+      let peak = 0;
+      if (s.analyser && playing) {
+        s.analyser.getFloatTimeDomainData(meterBuf);
+        for (let i = 0; i < meterBuf.length; i++) { const v = Math.abs(meterBuf[i]); if (v > peak) peak = v; }
+      }
+      const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
+      const target = Math.max(0, Math.min(1, (db + 60) / 60));      // -60..0 dBFS
+      s.level = target > s.level ? target : Math.max(target, s.level - 0.018);   // fast attack, smooth fall
+      if (s.level > s.peakHold || now - s.peakAt > 1200) { s.peakHold = s.level; s.peakAt = now; }
+      s.meterFill.style.clipPath = `inset(${((1 - s.level) * 100).toFixed(1)}% 0 0 0)`;
+      s.meterPeak.style.bottom = `calc(${(s.peakHold * 100).toFixed(1)}% - 2px)`;
+      s.meterPeak.style.opacity = s.peakHold > 0.01 ? (s.peakHold > 0.97 ? 1 : 0.7) : 0;
+      s.meterPeak.style.background = s.peakHold > 0.97 ? "#ff5d6c" : "#fff";
+    }
+    requestAnimationFrame(drawMeters);
+  }
+  requestAnimationFrame(drawMeters);
+
   strips.forEach((s) => s.el.classList.toggle("silent", s.muted));
   render();
 })();
