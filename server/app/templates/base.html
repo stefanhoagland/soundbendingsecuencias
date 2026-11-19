@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Library{% endblock %} · Soundbending Secuencias</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  {% if user %}
+  <header class="topbar">
+    <a class="brand" href="/">Soundbending <span>Secuencias</span></a>
+    <nav>
+      <a href="/">Library</a>
+      {% if user.is_admin %}<a href="/admin/users">Users</a>{% endif %}
+      <a href="/account">{{ user.display_name or user.username }}</a>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="link">Sign out</button>
+      </form>
+    </nav>
+  </header>
+  {% endif %}
+  <main class="{% block main_class %}page{% endblock %}">
+    {% if flash %}<div class="flash {{ flash.kind }}">{{ flash.text }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <script>window.CSRF = {{ csrf|tojson }};</script>
+  <script src="{{ url_for('static', path='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

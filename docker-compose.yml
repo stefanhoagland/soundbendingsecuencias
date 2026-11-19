@@ -1,0 +1,15 @@
+# Run on any Docker host:  docker compose up -d --build
+# Then open http://<server-ip>:8080 and sign in as the admin below.
+services:
+  soundbending:
+    build: ./server
+    image: soundbending-secuencias:latest
+    container_name: soundbending-secuencias
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SBS_ADMIN_USERNAME: admin
+      SBS_ADMIN_PASSWORD: change-me-now   # only used the very first time the server starts
+    volumes:
+      - ./data:/data

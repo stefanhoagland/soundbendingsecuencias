@@ -1,0 +1,63 @@
+"""Runtime settings, read from environment variables.
+
+Everything the server writes (database, audio, secret key) lives under
+SBS_DATA_DIR so a single Unraid share mapping keeps it all.
+"""
+
+from __future__ import annotations
+
+import os
+import secrets
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Settings:
+    data_dir: Path
+    secret_key: str
+    admin_username: str
+    admin_password: str | None
+    session_max_age: int
+
+    @property
+    def db_path(self) -> Path:
+        return self.data_dir / "library.db"
+
+    @property
+    def library_dir(self) -> Path:
+        return self.data_dir / "library"
+
+    @property
+    def tmp_dir(self) -> Path:
+        return self.data_dir / "tmp"
+
+
+def _load_or_create_secret(data_dir: Path) -> str:
+    env = os.environ.get("SBS_SECRET_KEY")
+    if env:
+        return env
+    path = data_dir / ".secret_key"
+    if path.exists():
+        return path.read_text().strip()
+    key = secrets.token_urlsafe(48)
+    path.write_text(key)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+
+def load_settings(data_dir: str | Path | None = None) -> Settings:
+    root = Path(data_dir or os.environ.get("SBS_DATA_DIR", "./data")).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "library").mkdir(exist_ok=True)
+    (root / "tmp").mkdir(exist_ok=True)
+    return Settings(
+        data_dir=root,
+        secret_key=_load_or_create_secret(root),
+        admin_username=os.environ.get("SBS_ADMIN_USERNAME", "admin"),
+        admin_password=os.environ.get("SBS_ADMIN_PASSWORD") or None,
+        session_max_age=int(os.environ.get("SBS_SESSION_DAYS", "30")) * 86400,
+    )

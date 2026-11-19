@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}{{ song.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="muted small" href="/">← Library</a>
+    <h1>{{ song.title }}</h1>
+    <div class="meta">
+      {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
+      <label class="keyctl" title="Change the key you play in. Shifts the chord chart and the preview audio.">
+        Key
+        <select id="transpose" data-url="/songs/{{ song.id }}/transpose" data-key="{{ song.key }}">
+          {% for n, k in transpose_options %}
+          <option value="{{ n }}" {{ 'selected' if n == song.transpose }}>
+            {%- if n == 0 %}{{ k or 'Original' }} (original){% else %}{{ k ~ ' ' if k }}({{ '%+d'|format(n) }}){% endif -%}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <span class="pill">{{ '%g'|format(song.bpm) if song.bpm else '–' }} BPM</span>
+      <span class="pill">{{ song.time_signature }}</span>
+      <span class="pill">{{ song.duration_seconds|duration }}</span>
+      <span class="muted">{{ song.tracks|length }} tracks · {{ song.total_bytes|filesize }}</span>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="button" href="/songs/{{ song.id }}/edit">Edit details</a>
+    <form method="post" action="/songs/{{ song.id }}/delete" class="inline"
+          data-confirm="Delete this song and all its audio? This cannot be undone.">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="danger">Delete</button>
+    </form>
+  </div>
+</div>
+{% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
+
+<nav class="tabs" role="tablist">
+  <a href="?tab=mix" data-tab="mix" role="tab" class="{{ 'active' if tab == 'mix' }}">Mix</a>
+  <a href="?tab=chart" data-tab="chart" role="tab" class="{{ 'active' if tab == 'chart' }}">Chord chart</a>
+</nav>
+
+<div data-panel="mix" {{ 'hidden' if tab != 'mix' }}>
+
+{% if song.tracks %}
+<section class="card player" id="player">
+  <div class="transport">
+    <button id="play" class="primary round" title="Play / pause (space)">▶</button>
+    <button id="stop" class="round" title="Back to start">■</button>
+    <span id="clock" class="clock">0:00</span>
+    <span class="muted small">/ {{ song.duration_seconds|duration }}</span>
+    <span class="muted small preview-note">Browser preview. Full playback comes in the Mac app.</span>
+  </div>
+  <div class="timeline" id="timeline">
+    {% for sec in song.sections %}
+      <button class="marker" style="left: {{ (sec.start_seconds / song.duration_seconds * 100) if song.duration_seconds else 0 }}%"
+              data-time="{{ sec.start_seconds }}" title="{{ fmt(sec.start_seconds) }}">{{ sec.name }}</button>
+    {% endfor %}
+    <div class="progress" id="progress"></div>
+  </div>
+  <div class="mixer" id="mixer">
+    {% for t in song.tracks %}
+    <div class="strip role-{{ t.role }}" data-track="{{ t.id }}" data-src="/tracks/{{ t.id }}/audio"
+         data-gain="{{ t.gain_db }}" data-pan="{{ t.pan }}" data-muted="{{ 1 if t.muted else 0 }}">
+      <div class="strip-name" title="{{ t.name }}">{{ t.name }}</div>
+      <input class="fader" type="range" min="-60" max="12" step="0.5" value="{{ t.gain_db }}" orient="vertical">
+      <div class="db">{{ '%+.1f'|format(t.gain_db) }} dB</div>
+      <div class="ms">
+        <button class="mute {{ 'on' if t.muted }}" title="Mute">M</button>
+        <button class="solo" title="Solo">S</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="grid-2">
+<section class="card" id="tracks">
+  <h2>Tracks</h2>
+  <form id="upload" class="dropzone" method="post" action="/songs/{{ song.id }}/tracks" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input id="files" type="file" name="files" accept=".wav,audio/wav,audio/x-wav" multiple>
+    <label for="files">
+      <strong>Drop WAV stems here</strong> or click to choose.<br>
+      <span class="muted small">Files named “click” or “guide” are tagged automatically.</span>
+    </label>
+    <noscript><button class="primary">Upload</button></noscript>
+  </form>
+  <ul id="upload-list" class="upload-list"></ul>
+
+  {% if song.tracks %}
+  <ul class="tracks">
+  {% for t in song.tracks %}
+    <li id="track-{{ t.id }}" class="track role-{{ t.role }}">
+      <form method="post" action="/tracks/{{ t.id }}" class="track-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input name="name" value="{{ t.name }}" aria-label="Track name" class="name">
+        <select name="role" aria-label="Role">
+          {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ r|capitalize }}</option>{% endfor %}
+        </select>
+        <label class="small">Gain <input name="gain_db" type="number" step="0.5" min="-60" max="12" value="{{ t.gain_db }}"></label>
+        <label class="small">Pan <input name="pan" type="number" step="0.1" min="-1" max="1" value="{{ t.pan }}"></label>
+        <label class="small check"><input type="checkbox" name="muted" {{ 'checked' if t.muted }}> Muted</label>
+        <button>Save</button>
+      </form>
+      <div class="track-meta muted small">
+        {{ t.original_filename }} · {{ t.sample_rate // 1000 if t.sample_rate % 1000 == 0 else t.sample_rate / 1000 }} kHz ·
+        {{ t.bit_depth }}-bit{{ ' float' if t.sample_format == 'float' }} ·
+        {{ 'mono' if t.channels == 1 else ('stereo' if t.channels == 2 else t.channels ~ ' ch') }} ·
+        {{ t.duration_seconds|duration }} · {{ t.size_bytes|filesize }}
+      </div>
+      <div class="track-actions">
+        <form method="post" action="/tracks/{{ t.id }}/move" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="-1">
+          <button class="icon" title="Move up" {{ 'disabled' if loop.first }}>↑</button>
+        </form>
+        <form method="post" action="/tracks/{{ t.id }}/move" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="1">
+          <button class="icon" title="Move down" {{ 'disabled' if loop.last }}>↓</button>
+        </form>
+        <a class="icon button" href="/tracks/{{ t.id }}/audio" download title="Download WAV">⤓</a>
+        <form method="post" action="/tracks/{{ t.id }}/delete" class="inline"
+              data-confirm="Remove {{ t.name }}?">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="icon danger" title="Remove">✕</button>
+        </form>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="card" id="sections">
+  <h2>Sections</h2>
+  {% if song.sections %}
+  <ol class="sections">
+    {% for sec in song.sections %}
+    <li>
+      <button class="link jump" data-time="{{ sec.start_seconds }}">{{ fmt(sec.start_seconds) }}</button>
+      <span>{{ sec.name }}</span>
+      <form method="post" action="/sections/{{ sec.id }}/delete" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="icon danger" title="Remove">✕</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted small">Add markers like Intro, Verse 1, Chorus so you can jump and loop in the player.</p>
+  {% endif %}
+  <form method="post" action="/songs/{{ song.id }}/sections" class="row section-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="name" placeholder="Chorus" list="section-names" required>
+    <input name="start" id="section-start" placeholder="1:23" required>
+    <button title="Use current player time" type="button" id="use-time" class="icon">⌖</button>
+    <button>Add</button>
+    <datalist id="section-names">
+      {% for n in ['Intro','Verse','Verse 1','Verse 2','Pre-Chorus','Chorus','Bridge','Instrumental','Interlude','Tag','Outro','Ending'] %}<option value="{{ n }}">{% endfor %}
+    </datalist>
+  </form>
+</section>
+</div>
+</div>
+
+<div data-panel="chart" {{ 'hidden' if tab != 'chart' }}>
+  <section class="card chart-card">
+    <div class="chart-toolbar">
+      <span class="muted small" id="chart-key-label"></span>
+      <div class="actions">
+        <button type="button" class="small" id="chart-smaller" title="Smaller text">A−</button>
+        <button type="button" class="small" id="chart-larger" title="Larger text">A+</button>
+        <button type="button" class="small" onclick="window.print()">Print</button>
+        <button type="button" class="small primary" id="chart-edit">{{ 'Edit chart' if song.chart else 'Add chart' }}</button>
+      </div>
+    </div>
+    <div id="chart-view" class="chart">
+      {% if not song.chart %}<p class="muted empty-chart">No chord chart yet. Click “Add chart” and paste one in.</p>{% endif %}
+    </div>
+    <form id="chart-form" method="post" action="/songs/{{ song.id }}/chart" class="stack" hidden>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="chart-editor">
+        <textarea name="chart" id="chart-text" rows="24" spellcheck="false"
+                  placeholder="[Verse 1]&#10;E              B&#10;You are here, moving in our midst&#10;&#10;[Chorus]&#10;Way[E]maker, [B]miracle worker">{{ song.chart }}</textarea>
+        <div class="chart-preview chart" id="chart-preview"></div>
+      </div>
+      <p class="muted small">Write chords in the original key ({{ song.key or 'not set' }}). Put chords on their own line above the lyrics, or inline in brackets like <code>Way[E]maker</code>. Section names go on their own line: <code>[Chorus]</code>, <code>Bridge:</code> or <code>{c: Tag}</code>.</p>
+      <div class="row end">
+        <button type="button" id="chart-cancel">Cancel</button>
+        <button class="primary">Save chart</button>
+      </div>
+    </form>
+  </section>
+</div>
+<script type="application/json" id="chart-src">{{ song.chart|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='chords.js') }}"></script>
+<script src="{{ url_for('static', path='song.js') }}"></script>
+{% endblock %}
