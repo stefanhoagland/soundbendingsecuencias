@@ -238,6 +238,18 @@ async def upload_tracks(
     return redirect(f"/songs/{song.id}", ("ok", f"Added {len(created)} track(s)."), request)
 
 
+@router.post("/songs/{song_id}/tracks/save", dependencies=[Depends(check_csrf)])
+async def save_tracks(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    song = owned_song(song_id, user, db)
+    form = await request.form()
+    try:
+        removed = services.save_tracks(db, get_settings(request).library_dir, song, form)
+    except services.ValidationError as exc:
+        return redirect(f"/songs/{song.id}#tracks", ("error", f"Nothing was saved: {exc}"), request)
+    msg = "Tracks saved." + (f" Removed {removed}." if removed else "")
+    return redirect(f"/songs/{song.id}#tracks", ("ok", msg), request)
+
+
 @router.post("/tracks/{track_id}", dependencies=[Depends(check_csrf)])
 def update_track(
     track_id: int,

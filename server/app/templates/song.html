@@ -48,9 +48,10 @@
     <button id="stop" class="round" title="Back to start">■</button>
     <span id="clock" class="clock">0:00</span>
     <span class="muted small">/ {{ song.duration_seconds|duration }}</span>
+    <span class="muted small" id="load-note"></span>
     <span class="muted small preview-note">Browser preview. Full playback comes in the Mac app.</span>
   </div>
-  <div class="timeline" id="timeline">
+  <div class="timeline" id="timeline" data-duration="{{ song.duration_seconds }}">
     {% for sec in song.sections %}
       <button class="marker" style="left: {{ (sec.start_seconds / song.duration_seconds * 100) if song.duration_seconds else 0 }}%"
               data-time="{{ sec.start_seconds }}" title="{{ fmt(sec.start_seconds) }}">{{ sec.name }}</button>
@@ -61,13 +62,21 @@
     {% for t in song.tracks %}
     <div class="strip role-{{ t.role }}" data-track="{{ t.id }}" data-src="/tracks/{{ t.id }}/audio"
          data-gain="{{ t.gain_db }}" data-pan="{{ t.pan }}" data-muted="{{ 1 if t.muted else 0 }}">
-      <div class="strip-name" title="{{ t.name }}">{{ t.name }}</div>
-      <input class="fader" type="range" min="-60" max="12" step="0.5" value="{{ t.gain_db }}" orient="vertical">
-      <div class="db">{{ '%+.1f'|format(t.gain_db) }} dB</div>
       <div class="ms">
-        <button class="mute {{ 'on' if t.muted }}" title="Mute">M</button>
-        <button class="solo" title="Solo">S</button>
+        <button type="button" class="solo" title="Solo">S</button>
+        <button type="button" class="mute {{ 'on' if t.muted }}" title="Mute">M</button>
       </div>
+      <div class="strip-body">
+        <div class="meter" aria-hidden="true"><div class="meter-fill"></div><div class="meter-peak"></div></div>
+        <div class="fader" tabindex="0" role="slider" aria-label="{{ t.name }} level"
+             aria-valuemin="-60" aria-valuemax="12" aria-valuenow="{{ t.gain_db }}">
+          <div class="fader-scale"></div>
+          <div class="fader-slot"></div>
+          <div class="fader-cap"><span></span></div>
+        </div>
+      </div>
+      <div class="db">{{ '%+.1f'|format(t.gain_db) }}</div>
+      <div class="strip-name" title="{{ t.name }}">{{ t.name }}</div>
     </div>
     {% endfor %}
   </div>
@@ -89,45 +98,47 @@
   <ul id="upload-list" class="upload-list"></ul>
 
   {% if song.tracks %}
-  <ul class="tracks">
-  {% for t in song.tracks %}
-    <li id="track-{{ t.id }}" class="track role-{{ t.role }}">
-      <form method="post" action="/tracks/{{ t.id }}" class="track-form">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <input name="name" value="{{ t.name }}" aria-label="Track name" class="name">
-        <select name="role" aria-label="Role">
-          {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ r|capitalize }}</option>{% endfor %}
-        </select>
-        <label class="small">Gain <input name="gain_db" type="number" step="0.5" min="-60" max="12" value="{{ t.gain_db }}"></label>
-        <label class="small">Pan <input name="pan" type="number" step="0.1" min="-1" max="1" value="{{ t.pan }}"></label>
-        <label class="small check"><input type="checkbox" name="muted" {{ 'checked' if t.muted }}> Muted</label>
-        <button>Save</button>
-      </form>
-      <div class="track-meta muted small">
-        {{ t.original_filename }} · {{ t.sample_rate // 1000 if t.sample_rate % 1000 == 0 else t.sample_rate / 1000 }} kHz ·
-        {{ t.bit_depth }}-bit{{ ' float' if t.sample_format == 'float' }} ·
-        {{ 'mono' if t.channels == 1 else ('stereo' if t.channels == 2 else t.channels ~ ' ch') }} ·
-        {{ t.duration_seconds|duration }} · {{ t.size_bytes|filesize }}
+  <form id="tracks-form" method="post" action="/songs/{{ song.id }}/tracks/save" class="tracks-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="tracks-bar">
+      <span class="muted small" id="tracks-status">Locked. Click Edit tracks to make changes.</span>
+      <div class="actions">
+        <button type="button" id="tracks-edit" class="small">Edit tracks</button>
+        <button type="button" id="tracks-cancel" class="small" hidden>Cancel</button>
+        <button type="submit" id="tracks-save" class="small primary" hidden>Save changes</button>
       </div>
-      <div class="track-actions">
-        <form method="post" action="/tracks/{{ t.id }}/move" class="inline">
-          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="-1">
-          <button class="icon" title="Move up" {{ 'disabled' if loop.first }}>↑</button>
-        </form>
-        <form method="post" action="/tracks/{{ t.id }}/move" class="inline">
-          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="direction" value="1">
-          <button class="icon" title="Move down" {{ 'disabled' if loop.last }}>↓</button>
-        </form>
-        <a class="icon button" href="/tracks/{{ t.id }}/audio" download title="Download WAV">⤓</a>
-        <form method="post" action="/tracks/{{ t.id }}/delete" class="inline"
-              data-confirm="Remove {{ t.name }}?">
-          <input type="hidden" name="csrf" value="{{ csrf }}">
-          <button class="icon danger" title="Remove">✕</button>
-        </form>
-      </div>
-    </li>
-  {% endfor %}
-  </ul>
+    </div>
+    <fieldset id="tracks-fields" disabled>
+    <ul class="tracks">
+    {% for t in song.tracks %}
+      <li id="track-{{ t.id }}" class="track role-{{ t.role }}" data-id="{{ t.id }}">
+        <input type="hidden" name="order" value="{{ t.id }}">
+        <div class="track-form">
+          <input name="name-{{ t.id }}" value="{{ t.name }}" aria-label="Track name" class="name" required>
+          <select name="role-{{ t.id }}" aria-label="Role">
+            {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ r|capitalize }}</option>{% endfor %}
+          </select>
+          <label class="small">Gain <input name="gain-{{ t.id }}" type="number" step="0.5" min="-60" max="12" value="{{ t.gain_db }}"></label>
+          <label class="small">Pan <input name="pan-{{ t.id }}" type="number" step="0.1" min="-1" max="1" value="{{ t.pan }}"></label>
+          <label class="small check"><input type="checkbox" name="muted-{{ t.id }}" {{ 'checked' if t.muted }}> Muted</label>
+          <label class="small check delete-check edit-only"><input type="checkbox" name="delete-{{ t.id }}"> Remove</label>
+        </div>
+        <div class="track-meta muted small">
+          {{ t.original_filename }} · {{ t.sample_rate // 1000 if t.sample_rate % 1000 == 0 else t.sample_rate / 1000 }} kHz ·
+          {{ t.bit_depth }}-bit{{ ' float' if t.sample_format == 'float' }} ·
+          {{ 'mono' if t.channels == 1 else ('stereo' if t.channels == 2 else t.channels ~ ' ch') }} ·
+          {{ t.duration_seconds|duration }} · {{ t.size_bytes|filesize }}
+        </div>
+        <div class="track-actions">
+          <button type="button" class="icon edit-only move" data-dir="-1" title="Move up">↑</button>
+          <button type="button" class="icon edit-only move" data-dir="1" title="Move down">↓</button>
+          <a class="icon button" href="/tracks/{{ t.id }}/audio" download title="Download WAV">⤓</a>
+        </div>
+      </li>
+    {% endfor %}
+    </ul>
+    </fieldset>
+  </form>
   {% endif %}
 </section>
 

@@ -227,3 +227,36 @@ def test_song_fields_from_filename():
     assert f("Goodness_of_God_Ab_63BPM.zip") == {"title": "Goodness of God", "bpm": 63.0, "key": "Ab"}
     assert f("Gratitude - Key of Bb - 72 BPM.zip") == {"title": "Gratitude", "bpm": 72.0, "key": "Bb"}
     assert f("Plan A.zip") == {"title": "Plan A", "bpm": None, "key": ""}
+
+
+def test_save_all_tracks_at_once(web, wav, app):
+    song_id = _new_song(web)
+    web.post(
+        f"/songs/{song_id}/tracks",
+        data={"csrf": web.csrf},
+        files=[wav_file("Drums.wav", wav(1)), wav_file("Bass.wav", wav(1)), wav_file("Keys.wav", wav(1))],
+    )
+    page = web.get(f"/songs/{song_id}").text
+    assert "<fieldset id=\"tracks-fields\" disabled>" in page  # locked by default
+    d, b, k = [int(i) for i in re.findall(r'id="track-(\d+)"', page)]
+    form = {
+        "csrf": web.csrf,
+        "order": [str(k), str(d), str(b)],
+        f"name-{k}": "Rhodes", f"role-{k}": "stem", f"gain-{k}": "-2", f"pan-{k}": "0",
+        f"name-{d}": "Drums", f"role-{d}": "stem", f"gain-{d}": "0", f"pan-{d}": "0", f"muted-{d}": "on",
+        f"name-{b}": "Bass", f"role-{b}": "stem", f"gain-{b}": "0", f"pan-{b}": "0", f"delete-{b}": "on",
+    }
+    r = web.post(f"/songs/{song_id}/tracks/save", data=form, follow_redirects=False)
+    assert r.status_code == 303
+    page = web.get(f"/songs/{song_id}").text
+    assert re.findall(r'id="track-(\d+)"', page) == [str(k), str(d)]
+    assert 'value="Rhodes"' in page and "Removed 1" in page
+    assert len(list((app.state.settings.library_dir / str(song_id)).glob("*.wav"))) == 2
+
+    # a bad value saves nothing
+    bad = dict(form, **{f"gain-{k}": "loud", f"name-{d}": "Changed"})
+    bad.pop(f"delete-{b}")
+    bad["order"] = [str(k), str(d)]
+    web.post(f"/songs/{song_id}/tracks/save", data=bad)
+    page = web.get(f"/songs/{song_id}").text
+    assert 'value="Changed"' not in page
