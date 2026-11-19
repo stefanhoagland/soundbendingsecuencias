@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>Library</h1>
+  <div class="actions">
+    <form method="get" action="/" class="search">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search title or artist">
+    </form>
+    <a class="button primary" href="/songs/new">+ New song</a>
+  </div>
+</div>
+
+{% if songs %}
+<table class="songs">
+  <thead><tr><th>Title</th><th>Artist</th><th>Key</th><th>BPM</th><th>Length</th><th>Tracks</th><th>Size</th></tr></thead>
+  <tbody>
+  {% for s in songs %}
+    <tr onclick="location.href='/songs/{{ s.id }}'">
+      <td><a href="/songs/{{ s.id }}">{{ s.title }}</a></td>
+      <td>{{ s.artist }}</td>
+      <td><span class="pill">{{ s.key or '–' }}</span></td>
+      <td>{{ '%g'|format(s.bpm) if s.bpm else '–' }}</td>
+      <td>{{ s.duration_seconds|duration }}</td>
+      <td>{{ s.tracks|length }}</td>
+      <td class="muted">{{ s.total_bytes|filesize }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% elif q %}
+<p class="empty">No songs match “{{ q }}”.</p>
+{% else %}
+<div class="empty card">
+  <h2>No songs yet</h2>
+  <p>Create a song, then drop its WAV stems in.</p>
+  <a class="button primary" href="/songs/new">+ New song</a>
+</div>
+{% endif %}
+{% endblock %}
