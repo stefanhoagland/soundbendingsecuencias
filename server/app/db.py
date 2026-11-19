@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -37,3 +37,21 @@ def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
         yield db
     finally:
         db.close()
+
+
+def add_missing_columns(engine: Engine) -> None:
+    """Tiny forward-only migration: add columns that exist on the models but not
+    in an older database file. Columns must be nullable or have a server_default."""
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            existing = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in existing:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col.type.compile(engine.dialect)}'
+                if col.server_default is not None:
+                    ddl += f" NOT NULL DEFAULT '{col.server_default.arg}'"
+                conn.execute(text(ddl))

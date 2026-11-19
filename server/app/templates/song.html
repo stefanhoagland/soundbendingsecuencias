@@ -7,7 +7,16 @@
     <h1>{{ song.title }}</h1>
     <div class="meta">
       {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
-      <span class="pill">Key {{ song.key or '–' }}</span>
+      <label class="keyctl" title="Change the key you play in. Shifts the chord chart and the preview audio.">
+        Key
+        <select id="transpose" data-url="/songs/{{ song.id }}/transpose" data-key="{{ song.key }}">
+          {% for n, k in transpose_options %}
+          <option value="{{ n }}" {{ 'selected' if n == song.transpose }}>
+            {%- if n == 0 %}{{ k or 'Original' }} (original){% else %}{{ k ~ ' ' if k }}({{ '%+d'|format(n) }}){% endif -%}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
       <span class="pill">{{ '%g'|format(song.bpm) if song.bpm else '–' }} BPM</span>
       <span class="pill">{{ song.time_signature }}</span>
       <span class="pill">{{ song.duration_seconds|duration }}</span>
@@ -24,6 +33,13 @@
   </div>
 </div>
 {% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
+
+<nav class="tabs" role="tablist">
+  <a href="?tab=mix" data-tab="mix" role="tab" class="{{ 'active' if tab == 'mix' }}">Mix</a>
+  <a href="?tab=chart" data-tab="chart" role="tab" class="{{ 'active' if tab == 'chart' }}">Chord chart</a>
+</nav>
+
+<div data-panel="mix" {{ 'hidden' if tab != 'mix' }}>
 
 {% if song.tracks %}
 <section class="card player" id="player">
@@ -145,7 +161,40 @@
   </form>
 </section>
 </div>
+</div>
+
+<div data-panel="chart" {{ 'hidden' if tab != 'chart' }}>
+  <section class="card chart-card">
+    <div class="chart-toolbar">
+      <span class="muted small" id="chart-key-label"></span>
+      <div class="actions">
+        <button type="button" class="small" id="chart-smaller" title="Smaller text">A−</button>
+        <button type="button" class="small" id="chart-larger" title="Larger text">A+</button>
+        <button type="button" class="small" onclick="window.print()">Print</button>
+        <button type="button" class="small primary" id="chart-edit">{{ 'Edit chart' if song.chart else 'Add chart' }}</button>
+      </div>
+    </div>
+    <div id="chart-view" class="chart">
+      {% if not song.chart %}<p class="muted empty-chart">No chord chart yet. Click “Add chart” and paste one in.</p>{% endif %}
+    </div>
+    <form id="chart-form" method="post" action="/songs/{{ song.id }}/chart" class="stack" hidden>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="chart-editor">
+        <textarea name="chart" id="chart-text" rows="24" spellcheck="false"
+                  placeholder="[Verse 1]&#10;E              B&#10;You are here, moving in our midst&#10;&#10;[Chorus]&#10;Way[E]maker, [B]miracle worker">{{ song.chart }}</textarea>
+        <div class="chart-preview chart" id="chart-preview"></div>
+      </div>
+      <p class="muted small">Write chords in the original key ({{ song.key or 'not set' }}). Put chords on their own line above the lyrics, or inline in brackets like <code>Way[E]maker</code>. Section names go on their own line: <code>[Chorus]</code>, <code>Bridge:</code> or <code>{c: Tag}</code>.</p>
+      <div class="row end">
+        <button type="button" id="chart-cancel">Cancel</button>
+        <button class="primary">Save chart</button>
+      </div>
+    </form>
+  </section>
+</div>
+<script type="application/json" id="chart-src">{{ song.chart|tojson }}</script>
 {% endblock %}
 {% block scripts %}
+<script src="{{ url_for('static', path='chords.js') }}"></script>
 <script src="{{ url_for('static', path='song.js') }}"></script>
 {% endblock %}

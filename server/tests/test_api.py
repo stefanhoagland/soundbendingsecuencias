@@ -27,6 +27,7 @@ def test_song_manifest_round_trip(api, wav):
     m = api.get(f"/api/songs/{song_id}").json()
     assert m["manifest_version"] == 1
     assert m["bpm"] == 63 and m["key"] == "Ab"
+    assert m["transpose"] == 0 and m["play_key"] == "Ab" and m["chart"] == ""
     assert m["duration_seconds"] == 2.0
     assert m["sections"] == [{"id": m["sections"][0]["id"], "name": "Verse 1", "start_seconds": 12.5, "color": ""}]
     ag = m["tracks"][1]
@@ -56,3 +57,11 @@ def test_timestamp_parsing():
     assert format_timestamp(83.5) == "1:23.5"
     assert format_timestamp(65) == "1:05"
     assert format_timestamp(3725) == "1:02:05"
+
+
+def test_api_chart_and_transpose(api):
+    song_id = api.post("/api/songs", json={"title": "Firm Foundation", "key": "B"}).json()["id"]
+    r = api.put(f"/api/songs/{song_id}", json={"title": "Firm Foundation", "key": "B", "transpose": 1, "chart": "[B]Christ is my"})
+    assert r.status_code == 200, r.text
+    assert r.json()["play_key"] == "C" and r.json()["chart"] == "[B]Christ is my"
+    assert api.put(f"/api/songs/{song_id}", json={"title": "x", "transpose": 99}).status_code == 422

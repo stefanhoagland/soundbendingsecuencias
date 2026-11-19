@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import api, web
 from .config import Settings, load_settings
-from .db import Base, make_engine, make_session_factory
+from .db import Base, add_missing_columns, make_engine, make_session_factory
 from .deps import LoginRequired
 from .models import User
 from .services import create_user
@@ -58,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     engine = make_engine(settings.db_path)
     Base.metadata.create_all(engine)
+    add_missing_columns(engine)
     factory = make_session_factory(engine)
     _ensure_admin(settings, factory)
 

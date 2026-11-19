@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .audio import InvalidWav, guess_role, track_name_from_filename
+from .music import transpose_key  # noqa: F401  (re-exported)
 from .models import TRACK_ROLES, Section, Song, Track, User
 from .security import hash_password
 from .storage import delete_song_dir, delete_track_file, save_upload
@@ -20,8 +21,21 @@ KEYS = [
 KEY_OPTIONS = [""] + KEYS + [k + "m" for k in KEYS]
 
 
+MAX_TRANSPOSE = 11
+
+
 class ValidationError(ValueError):
     pass
+
+
+def parse_transpose(value) -> int:
+    try:
+        n = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Transpose must be a whole number of semitones") from exc
+    if not -MAX_TRANSPOSE <= n <= MAX_TRANSPOSE:
+        raise ValidationError(f"Transpose must be between -{MAX_TRANSPOSE} and +{MAX_TRANSPOSE} semitones")
+    return n
 
 
 def parse_bpm(value: str | float | None) -> float | None:

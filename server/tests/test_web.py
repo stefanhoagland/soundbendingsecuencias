@@ -116,3 +116,44 @@ def test_range_request_for_audio(web, wav):
     r = web.get(f"/tracks/{track_id}/audio", headers={"Range": "bytes=0-11"})
     assert r.status_code == 206
     assert r.content == b"RIFF" + r.content[4:8] + b"WAVE"
+
+
+def test_chart_and_transpose(web):
+    song_id = _new_song(web)
+    chart = "[Chorus]\r\nWay[E]maker, [B]miracle worker\r\n"
+    r = web.post(f"/songs/{song_id}/chart", data={"chart": chart, "csrf": web.csrf}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("?tab=chart")
+    r = web.post(
+        f"/songs/{song_id}/transpose",
+        data={"semitones": "-2"},
+        headers={"X-CSRF-Token": web.csrf, "X-Requested-With": "fetch"},
+    )
+    assert r.json() == {"transpose": -2, "play_key": "D"}
+    page = web.get(f"/songs/{song_id}?tab=chart").text
+    assert '"[Chorus]\\nWay[E]maker, [B]miracle worker"' in page  # chart stored without CRs
+    assert '<option value="-2" selected>D (-2)</option>' in page
+    bad = web.post(
+        f"/songs/{song_id}/transpose",
+        data={"semitones": "20"},
+        headers={"X-CSRF-Token": web.csrf, "X-Requested-With": "fetch"},
+    )
+    assert bad.status_code == 422
+
+
+def test_old_database_gets_new_columns(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app.config import load_settings
+    from app.main import create_app
+
+    data = tmp_path / "old"
+    settings = load_settings(data)
+    con = sqlite3.connect(settings.db_path)
+    con.execute("CREATE TABLE songs (id INTEGER PRIMARY KEY, owner_id INTEGER, title VARCHAR(255), artist VARCHAR(255),"
+                " bpm FLOAT, key VARCHAR(16), time_signature VARCHAR(8), notes TEXT, created_at DATETIME, updated_at DATETIME)")
+    con.commit()
+    con.close()
+    monkeypatch.setenv("SBS_ADMIN_PASSWORD", "admin-pass-123")
+    create_app(settings)
+    cols = {row[1] for row in sqlite3.connect(settings.db_path).execute("PRAGMA table_info(songs)")}
+    assert {"chart", "transpose"} <= cols

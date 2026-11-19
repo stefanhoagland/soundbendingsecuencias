@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Te
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .music import transpose_key
 
 
 def utcnow() -> datetime:
@@ -55,6 +56,10 @@ class Song(Base):
     key: Mapped[str] = mapped_column(String(16), default="")
     time_signature: Mapped[str] = mapped_column(String(8), default="4/4")
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Chord chart in ChordPro-style text: chords in [brackets] inline, or chord lines over lyrics.
+    chart: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Semitones to shift the song by when playing (chart and audio); key stays the original key.
+    transpose: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -69,6 +74,10 @@ class Song(Base):
     @property
     def duration_seconds(self) -> float:
         return max((t.duration_seconds or 0.0 for t in self.tracks), default=0.0)
+
+    @property
+    def play_key(self) -> str:
+        return transpose_key(self.key, self.transpose or 0)
 
     @property
     def total_bytes(self) -> int:

@@ -16,6 +16,8 @@ A private, self-hosted home for your multitracks, plus (coming next) a Mac app t
 - Drag in WAV stems (16/24/32-bit, PCM or float, any sample rate, mono or stereo). Files named *click* or *guide* / *cues* are tagged automatically.
 - Set each track's default name, role, gain, pan and mute. The Mac app will start from these.
 - Add section markers (Intro, Verse 1, Chorus…) by typing a time or grabbing the preview player's position.
+- **Change key**: pick a new key from the song header and the chord chart and preview audio shift with it (click and guide tracks stay untouched). The choice is saved with the song and included in what the Mac app downloads.
+- **Chord chart tab**: paste or type a chart with chords above the lyrics or inline ChordPro (`Way[E]maker`), with section headings, a live preview while editing, text size, and print.
 - Preview the multitrack in the browser with per-track faders, mute and solo, and jump to sections.
 - JSON API for the Mac app at `/api` (interactive docs at `/api/docs`).
 
@@ -72,6 +74,7 @@ cd server
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 python -m pytest -q
+node --test tests/*.test.js   # chord chart parser
 SBS_DATA_DIR=./data SBS_ADMIN_PASSWORD=devpassword uvicorn app.main:create_app --factory --reload --port 8080
 ```
 

@@ -123,6 +123,10 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         song=song,
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
+        tab="chart" if request.query_params.get("tab") == "chart" else "mix",
+        transpose_options=[
+            (n, services.transpose_key(song.key, n)) for n in range(-services.MAX_TRANSPOSE, services.MAX_TRANSPOSE + 1)
+        ],
     )
 
 
@@ -245,6 +249,44 @@ def track_audio(track_id: int, request: Request, user: User = Depends(web_user),
     if not path.exists():
         raise HTTPException(404, "Audio file is missing on the server")
     return FileResponse(path, media_type="audio/wav", filename=track.original_filename)
+
+
+# ---- key & chord chart ----------------------------------------------------
+
+
+@router.post("/songs/{song_id}/transpose", dependencies=[Depends(check_csrf)])
+def set_transpose(
+    song_id: int,
+    request: Request,
+    semitones: str = Form("0"),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    song = owned_song(song_id, user, db)
+    try:
+        song.transpose = services.parse_transpose(semitones)
+    except services.ValidationError as exc:
+        if request.headers.get("x-requested-with") == "fetch":
+            return JSONResponse({"error": str(exc)}, status_code=422)
+        return redirect(f"/songs/{song.id}", ("error", str(exc)), request)
+    db.commit()
+    if request.headers.get("x-requested-with") == "fetch":
+        return JSONResponse({"transpose": song.transpose, "play_key": song.play_key})
+    return redirect(f"/songs/{song.id}")
+
+
+@router.post("/songs/{song_id}/chart", dependencies=[Depends(check_csrf)])
+def save_chart(
+    song_id: int,
+    request: Request,
+    chart: str = Form(""),
+    user: User = Depends(web_user),
+    db: Session = Depends(get_db),
+):
+    song = owned_song(song_id, user, db)
+    song.chart = chart.replace("\r\n", "\n").strip("\n")
+    db.commit()
+    return redirect(f"/songs/{song.id}?tab=chart", ("ok", "Chord chart saved."), request)
 
 
 # ---- sections -------------------------------------------------------------

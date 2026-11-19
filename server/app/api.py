@@ -36,6 +36,8 @@ class SongIn(BaseModel):
     key: str = ""
     time_signature: str = "4/4"
     notes: str = ""
+    chart: str | None = None
+    transpose: int | None = None
 
 
 class TrackPatch(BaseModel):
@@ -79,6 +81,8 @@ def song_summary(s: Song) -> dict:
         "artist": s.artist,
         "bpm": s.bpm,
         "key": s.key,
+        "transpose": s.transpose,
+        "play_key": s.play_key,
         "time_signature": s.time_signature,
         "duration_seconds": round(s.duration_seconds, 3),
         "track_count": len(s.tracks),
@@ -93,6 +97,7 @@ def song_manifest(request: Request, s: Song) -> dict:
         "manifest_version": MANIFEST_VERSION,
         **song_summary(s),
         "notes": s.notes,
+        "chart": s.chart,
         "sections": [
             {"id": sec.id, "name": sec.name, "start_seconds": sec.start_seconds, "color": sec.color}
             for sec in s.sections
@@ -103,6 +108,16 @@ def song_manifest(request: Request, s: Song) -> dict:
 
 def _bad_request(exc: Exception) -> HTTPException:
     return HTTPException(422, str(exc))
+
+
+def _apply(song: Song, body: SongIn) -> None:
+    fields = body.model_dump()
+    chart, transpose = fields.pop("chart"), fields.pop("transpose")
+    services.apply_song_fields(song, **fields)
+    if chart is not None:
+        song.chart = chart
+    if transpose is not None:
+        song.transpose = services.parse_transpose(transpose)
 
 
 @router.post("/auth/token")
@@ -135,7 +150,7 @@ def list_songs(q: str = "", user: User = Depends(api_user), db: Session = Depend
 def create_song(body: SongIn, request: Request, user: User = Depends(api_user), db: Session = Depends(get_db)):
     song = Song(owner=user, title="")
     try:
-        services.apply_song_fields(song, **body.model_dump())
+        _apply(song, body)
     except services.ValidationError as exc:
         raise _bad_request(exc) from exc
     db.add(song)
@@ -154,7 +169,7 @@ def update_song(
 ):
     song = owned_song(song_id, user, db)
     try:
-        services.apply_song_fields(song, **body.model_dump())
+        _apply(song, body)
     except services.ValidationError as exc:
         raise _bad_request(exc) from exc
     db.commit()
