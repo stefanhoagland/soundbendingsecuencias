@@ -1,29 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Users{% endblock %}
+{% block title %}{{ _('Users') }}{% endblock %}
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
-<h1>Users</h1>
+<h1>{{ _('Users') }}</h1>
 <section class="card">
   <table class="plain">
-    <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Church</th><th>Songs</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Username') }}</th><th>{{ _('Name') }}</th><th>{{ _('Role') }}</th><th>{{ _('Church') }}</th><th>{{ _('Songs') }}</th><th></th></tr></thead>
     <tbody>
     {% for u in users %}
       <tr>
         <td>{{ u.username }}</td>
         <td>{{ u.display_name }}</td>
-        <td>{{ 'Admin' if u.is_admin else (u.church_role|capitalize if u.church else 'Own library') }}</td>
+        <td>{{ _('Admin') if u.is_admin else (_(u.church_role|capitalize) if u.church else _('Own library')) }}</td>
         <td>{% if u.church %}<a href="/c/{{ u.church.slug }}">{{ u.church.name }}</a>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td>{{ u.songs|length }}</td>
         <td class="row end">
           <form method="post" action="/admin/users/{{ u.id }}/password" class="inline row">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <input type="password" name="password" placeholder="New password" minlength="8" required class="small-input">
-            <button class="small">Reset</button>
+            <input type="password" name="password" placeholder="{{ _('New password') }}" minlength="8" required class="small-input">
+            <button class="small">{{ _('Reset') }}</button>
           </form>
           {% if u.id != user.id %}
           <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline"
-                data-confirm="Delete {{ u.username }} and all of their songs?">
-            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete</button>
+                data-confirm="{{ _('Delete {name} and all of their songs?', name=u.username) }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Delete') }}</button>
           </form>
           {% endif %}
         </td>
@@ -33,17 +33,17 @@
   </table>
 </section>
 <section class="card stack">
-  <h2>Add user</h2>
-  <p class="muted small">People added here get their own private library. To add someone to a church, use <a href="/admin/churches">Churches</a> → Members.</p>
+  <h2>{{ _('Add user') }}</h2>
+  <p class="muted small">{{ _('People added here get their own private library. To add someone to a church, use <a href="/admin/churches">Churches</a> → Members.')|safe }}</p>
   <form method="post" action="/admin/users" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="row">
-      <label>Username <input name="username" required pattern="[A-Za-z0-9_.\-]{2,64}"></label>
-      <label>Display name <input name="display_name"></label>
+      <label>{{ _('Username') }} <input name="username" required pattern="[A-Za-z0-9_.\-]{2,64}"></label>
+      <label>{{ _('Display name') }} <input name="display_name"></label>
     </div>
-    <label>Password <input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
-    <label class="check"><input type="checkbox" name="is_admin"> Admin (can manage users)</label>
-    <div class="row end"><button class="primary">Add user</button></div>
+    <label>{{ _('Password') }} <input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+    <label class="check"><input type="checkbox" name="is_admin"> {{ _('Admin (can manage users)') }}</label>
+    <div class="row end"><button class="primary">{{ _('Add user') }}</button></div>
   </form>
 </section>
 {% endblock %}

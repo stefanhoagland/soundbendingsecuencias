@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Practice' if practice else 'Library' }}{% endblock %}
+{% block title %}{{ _('Practice') if practice else _('Library') }}{% endblock %}
 {% block content %}
 {% if practice %}
 <div class="page-head">
   <div>
-    <h1>Practice</h1>
-    <p class="muted small">{{ church.name }} · pick a song to rehearse</p>
+    <h1>{{ _('Practice') }}</h1>
+    <p class="muted small">{{ _('{church} · pick a song to rehearse', church=church.name) }}</p>
   </div>
   <div class="actions">
     <form method="get" action="/c/{{ church.slug }}" class="search">
-      <input type="search" name="q" value="{{ q }}" placeholder="Search songs">
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Search songs') }}">
     </form>
   </div>
 </div>
@@ -17,21 +17,21 @@
 <section class="setlist-cards">
   {% for sl in upcoming %}
   <a class="setlist-card{{ ' next' if loop.first }}" href="/setlists/{{ sl.id }}">
-    <span class="setlist-when">{{ 'Next up' if loop.first else 'Coming up' }}{% if sl.service_date %} · {{ setlist_label(sl) }}{% endif %}</span>
+    <span class="setlist-when">{{ _('Next up') if loop.first else _('Coming up') }}{% if sl.service_date %} · {{ setlist_label(sl) }}{% endif %}</span>
     <strong>{{ sl.name }}</strong>
     <ol class="setlist-mini">{% for s in sl.songs %}<li>{{ s.title }} <span class="muted">{{ s.play_key or s.key }}</span></li>{% endfor %}</ol>
-    {% if not sl.items %}<span class="muted small">No songs yet</span>{% endif %}
+    {% if not sl.items %}<span class="muted small">{{ _('No songs yet') }}</span>{% endif %}
   </a>
   {% endfor %}
   {% for sl in past %}
   <a class="setlist-card past" href="/setlists/{{ sl.id }}">
     <span class="setlist-when">{{ setlist_label(sl) }}</span>
     <strong>{{ sl.name }}</strong>
-    <span class="muted small">{{ sl.items|length }} songs</span>
+    <span class="muted small">{{ _('{n} songs', n=sl.items|length) }}</span>
   </a>
   {% endfor %}
 </section>
-<h2 class="list-heading">All songs</h2>
+<h2 class="list-heading">{{ _('All songs') }}</h2>
 {% endif %}
 {% if songs %}
 <ul class="practice-list">
@@ -46,21 +46,21 @@
   {% endfor %}
 </ul>
 {% elif q %}
-<p class="empty">No songs match “{{ q }}”.</p>
+<p class="empty">{{ _('No songs match “{q}”.', q=q) }}</p>
 {% else %}
-<div class="empty card"><h2>No songs yet</h2><p>Your leaders haven't added any songs yet.</p></div>
+<div class="empty card"><h2>{{ _('No songs yet') }}</h2><p>{{ _("Your leaders haven't added any songs yet.") }}</p></div>
 {% endif %}
 {% else %}
 <div class="page-head">
   <div>
-    <h1>{{ church.name if church else 'Library' }}</h1>
-    {% if church and user.is_admin %}<p class="muted small">You're working in {{ church.name }}'s library. New songs you add here belong to them. <a href="/">Back to my library</a></p>{% endif %}
+    <h1>{{ church.name if church else _('Library') }}</h1>
+    {% if church and user.is_admin %}<p class="muted small">{{ _("You're working in {church}'s library. New songs you add here belong to them.", church=church.name) }} <a href="/">{{ _('Back to my library') }}</a></p>{% endif %}
   </div>
   <div class="actions">
     <form method="get" action="{{ '/c/' ~ church.slug if church else '/' }}" class="search">
-      <input type="search" name="q" value="{{ q }}" placeholder="Search title or artist">
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Search title or artist') }}">
     </form>
-    {% if can_add %}<a class="button primary" href="/songs/new">+ New song</a>{% endif %}
+    {% if can_add %}<a class="button primary" href="/songs/new">{{ _('+ New song') }}</a>{% endif %}
   </div>
 </div>
 {% if can_add %}
@@ -69,17 +69,17 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input id="zip-files" type="file" name="files" accept=".zip,application/zip" multiple>
   <label for="zip-files">
-    <strong>Drop a ZIP of stems to create a song</strong> or click to choose. Drop several ZIPs to add several songs.<br>
-    <span class="muted small">Name it like “Way Maker - E - 68bpm.zip” and the title, key and BPM are filled in for you.</span>
+    <strong>{{ _('Drop a ZIP of stems to create a song') }}</strong> {{ _('or click to choose. Drop several ZIPs to add several songs.') }}<br>
+    <span class="muted small">{{ _('Name it like “Way Maker - E - 68bpm.zip” and the title, key and BPM are filled in for you.') }}</span>
   </label>
-  <noscript><button class="primary">Upload</button></noscript>
+  <noscript><button class="primary">{{ _('Upload') }}</button></noscript>
 </form>
 <ul id="zip-list" class="upload-list"></ul>
 {% endif %}
 
 {% if songs %}
 <table class="songs">
-  <thead><tr><th>Title</th><th>Artist</th><th>Key</th><th>BPM</th><th>Length</th><th>Tracks</th><th>Size</th></tr></thead>
+  <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Artist') }}</th><th>{{ _('Key') }}</th><th>BPM</th><th>{{ _('Length') }}</th><th>{{ _('Tracks') }}</th><th>{{ _('Size') }}</th></tr></thead>
   <tbody>
   {% for s in songs %}
     <tr onclick="location.href='/songs/{{ s.id }}'">
@@ -95,15 +95,15 @@
   </tbody>
 </table>
 {% elif q %}
-<p class="empty">No songs match “{{ q }}”.</p>
+<p class="empty">{{ _('No songs match “{q}”.', q=q) }}</p>
 {% else %}
 <div class="empty card">
-  <h2>No songs yet</h2>
+  <h2>{{ _('No songs yet') }}</h2>
   {% if can_add %}
-  <p>Create a song, then drop its WAV stems in.</p>
-  <a class="button primary" href="/songs/new">+ New song</a>
+  <p>{{ _('Create a song, then drop its WAV stems in.') }}</p>
+  <a class="button primary" href="/songs/new">{{ _('+ New song') }}</a>
   {% else %}
-  <p>Your church leader hasn't added any songs yet.</p>
+  <p>{{ _("Your church leader hasn't added any songs yet.") }}</p>
   {% endif %}
 </div>
 {% endif %}

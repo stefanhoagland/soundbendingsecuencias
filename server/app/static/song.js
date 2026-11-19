@@ -23,7 +23,7 @@
       xhr.upload.onprogress = (e) => {
         if (!e.lengthComputable) return;
         bar.value = (e.loaded / e.total) * 100;
-        if (e.loaded === e.total && /\.zip$/i.test(file.name)) status.textContent = "Unpacking…";
+        if (e.loaded === e.total && /\.zip$/i.test(file.name)) status.textContent = T("Unpacking…");
       };
       xhr.onload = () => {
         let data = {};
@@ -31,17 +31,17 @@
         if (xhr.status === 200 && !(data.errors || []).length) {
           bar.value = 100; li.classList.add("ok");
           const n = (data.created || []).length;
-          status.textContent = /\.zip$/i.test(file.name) ? `✓ ${n} track${n === 1 ? "" : "s"}` : "✓";
+          status.textContent = /\.zip$/i.test(file.name) ? T("✓ {n} tracks", { n }) : "✓";
         } else if (xhr.status === 200) {
-          status.textContent = `${(data.created || []).length} added. ` + data.errors.join(" ");
+          status.textContent = T("{n} added.", { n: (data.created || []).length }) + " " + data.errors.join(" ");
           li.classList.add("error");
         } else {
-          status.textContent = (data.errors && data.errors.join(" ")) || data.detail || "Upload failed";
+          status.textContent = (data.errors && data.errors.join(" ")) || data.detail || T("Upload failed");
           li.classList.add("error");
         }
         resolve(xhr.status === 200 && (data.created || []).length > 0);
       };
-      xhr.onerror = () => { status.textContent = "Network error"; li.classList.add("error"); resolve(false); };
+      xhr.onerror = () => { status.textContent = T("Network error"); li.classList.add("error"); resolve(false); };
       xhr.send(body);
     });
   }
@@ -52,7 +52,7 @@
     if (skipped) {
       const li = document.createElement("li");
       li.className = "error";
-      li.textContent = `Skipped ${skipped} file(s) that aren't WAV or ZIP.`;
+      li.textContent = T("Skipped {n} file(s) that aren't WAV or ZIP.", { n: skipped });
       list.appendChild(li);
     }
     if (!wavs.length) return;
@@ -89,9 +89,9 @@
       fields.disabled = !on;
       tracksForm.classList.toggle("editing", on);
       editBtn.hidden = on; saveBtn.hidden = !on; cancelBtn.hidden = !on; suggestBtn.hidden = !on;
-      status.textContent = on ? "Editing. Changes aren't saved until you click Save changes." : "Locked. Click Edit tracks to make changes.";
+      status.textContent = on ? T("Editing. Changes aren't saved until you click Save changes.") : T("Locked. Click Edit tracks to make changes.");
     };
-    const markDirty = () => { dirty = true; status.textContent = "Unsaved changes."; };
+    const markDirty = () => { dirty = true; status.textContent = T("Unsaved changes."); };
 
     editBtn.addEventListener("click", () => setEditing(true));
     suggestBtn.addEventListener("click", () => {
@@ -107,7 +107,7 @@
         else if (n.startsWith("guia") || n === "cues" || n === "conteo") role.value = "guide";
       });
       markDirty();
-      status.textContent = changed ? `Suggested ${changed} name${changed === 1 ? "" : "s"}. Check them, then Save changes.` : "Names already look tidy.";
+      status.textContent = changed ? T("Suggested {n} names. Check them, then Save changes.", { n: changed }) : T("Names already look tidy.");
     });
     // Picking "Click"/"Guía" from the list sets the role too.
     list.addEventListener("change", (e) => {
@@ -138,7 +138,7 @@
     });
     tracksForm.addEventListener("submit", (e) => {
       const n = tracksForm.querySelectorAll('input[name^="delete-"]:checked').length;
-      if (n && !window.confirm(`Remove ${n} track${n === 1 ? "" : "s"} and delete the audio? This cannot be undone.`)) { e.preventDefault(); return; }
+      if (n && !window.confirm(T("Remove {n} tracks and delete the audio? This cannot be undone.", { n }))) { e.preventDefault(); return; }
       dirty = false;
     });
     window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
@@ -193,8 +193,8 @@
     if (keyLabel) {
       const n = semis();
       keyLabel.textContent = originalKey
-        ? (n ? `Showing in ${playKey()} (original ${originalKey}, ${n > 0 ? "+" : ""}${n})` : `Key of ${originalKey}`)
-        : (n ? `Transposed ${n > 0 ? "+" : ""}${n}` : "");
+        ? (n ? T("Showing in {key} (original {orig}, {n})", { key: playKey(), orig: originalKey, n: (n > 0 ? "+" : "") + n }) : T("Key of {key}", { key: originalKey }))
+        : (n ? T("Transposed {n}", { n: (n > 0 ? "+" : "") + n }) : "");
     }
     if (chartPreview && chartForm && !chartForm.hidden) chartPreview.innerHTML = window.Chords.render(chartTextarea.value, semis(), useFlats());
   }
@@ -356,7 +356,7 @@
     loading = (async () => {
       buildGraph();
       let done = 0;
-      const note = () => { if (loadNote) loadNote.textContent = `Loading tracks ${done}/${strips.length}…`; };
+      const note = () => { if (loadNote) loadNote.textContent = T("Loading tracks {done}/{total}…", { done, total: strips.length }); };
       note();
       playBtn.disabled = true;
       // A few at a time keeps memory and the server's disk happy.
@@ -370,7 +370,7 @@
             s.buffer = await ctx.decodeAudioData(await res.arrayBuffer());
           } catch (err) {
             s.el.classList.add("failed");
-            s.el.title = `Couldn't load: ${err.message || err}`;
+            s.el.title = T("Couldn't load: {err}", { err: err.message || err });
           }
           done++; note();
         }

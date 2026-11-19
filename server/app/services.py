@@ -464,8 +464,17 @@ def parse_date(text) -> date | None:
         raise ValidationError("Use a date like 2026-11-22") from exc
 
 
-def setlist_label(setlist: Setlist) -> str:
-    return setlist.service_date.strftime("%A %b %-d") if setlist.service_date else ""
+_ES_DAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_ES_MONTHS = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+
+
+def setlist_label(setlist: Setlist, lang: str = "en") -> str:
+    d = setlist.service_date
+    if d is None:
+        return ""
+    if lang == "es":
+        return f"{_ES_DAYS[d.weekday()]} {d.day} {_ES_MONTHS[d.month - 1]}".capitalize()
+    return f"{d:%A %b} {d.day}"
 
 
 def create_setlist(db: Session, church: Church, name: str = "", service_date=None) -> Setlist:

@@ -1,36 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Account{% endblock %}
+{% block title %}{{ _('Account') }}{% endblock %}
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
-<h1>Account</h1>
+<h1>{{ _('Account') }}</h1>
 <section class="card stack">
-  <h2>Change password</h2>
+  <h2>{{ _('Change password') }}</h2>
   <form method="post" action="/account/password" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
-    <label>New password <input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
-    <div class="row end"><button class="primary">Change password</button></div>
+    <label>{{ _('Current password') }} <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>{{ _('New password') }} <input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
+    <div class="row end"><button class="primary">{{ _('Change password') }}</button></div>
   </form>
 </section>
 
 <section class="card stack">
-  <h2>App tokens</h2>
-  <p class="muted small">The Mac app signs in with your username and password and creates a token for itself. You can also create one here, and revoke any device you no longer use.</p>
+  <h2>{{ _('App tokens') }}</h2>
+  <p class="muted small">{{ _('The Mac app signs in with your username and password and creates a token for itself. You can also create one here, and revoke any device you no longer use.') }}</p>
   {% if new_token %}
-  <div class="flash ok">New token (shown once): <code class="token">{{ new_token }}</code></div>
+  <div class="flash ok">{{ _('New token (shown once):') }} <code class="token">{{ new_token }}</code></div>
   {% endif %}
   {% if tokens %}
   <table class="plain">
-    <thead><tr><th>Device</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Device') }}</th><th>{{ _('Created') }}</th><th>{{ _('Last used') }}</th><th></th></tr></thead>
     <tbody>
     {% for t in tokens %}
       <tr>
         <td>{{ t.name }}</td>
         <td class="muted">{{ t.created_at.strftime('%Y-%m-%d') }}</td>
-        <td class="muted">{{ t.last_used_at.strftime('%Y-%m-%d %H:%M') if t.last_used_at else 'never' }}</td>
+        <td class="muted">{{ t.last_used_at.strftime('%Y-%m-%d %H:%M') if t.last_used_at else _('never') }}</td>
         <td>
           <form method="post" action="/account/tokens/{{ t.id }}/delete" class="inline">
-            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Revoke</button>
+            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Revoke') }}</button>
           </form>
         </td>
       </tr>
@@ -40,8 +40,8 @@
   {% endif %}
   <form method="post" action="/account/tokens" class="row">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <input name="name" placeholder="Device name, e.g. MacBook Pro">
-    <button>Create token</button>
+    <input name="name" placeholder="{{ _('Device name, e.g. MacBook Pro') }}">
+    <button>{{ _('Create token') }}</button>
   </form>
 </section>
 {% endblock %}

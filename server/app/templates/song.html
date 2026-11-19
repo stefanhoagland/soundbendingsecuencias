@@ -3,16 +3,16 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <a class="muted small" href="{{ back_url }}">← {{ 'Practice' if practice else 'Library' }}</a>
+    <a class="muted small" href="{{ back_url }}">{{ _('← Practice') if practice else _('← Library') }}</a>
     <h1>{{ song.title }}</h1>
     <div class="meta">
       {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
-      <label class="keyctl" title="Change the key you play in. Shifts the chord chart and the preview audio.">
-        Key
+      <label class="keyctl" title="{{ _('Change the key you play in. Shifts the chord chart and the preview audio.') }}">
+        {{ _('Key') }}
         <select id="transpose" {% if editable %}data-url="/songs/{{ song.id }}/transpose"{% endif %} data-key="{{ song.key }}">
           {% for n, k in transpose_options %}
           <option value="{{ n }}" {{ 'selected' if n == song.transpose }}>
-            {%- if n == 0 %}{{ k or 'Original' }} (original){% else %}{{ k ~ ' ' if k }}({{ '%+d'|format(n) }}){% endif -%}
+            {%- if n == 0 %}{{ k or _('Original') }} {{ _('(original)') }}{% else %}{{ k ~ ' ' if k }}({{ '%+d'|format(n) }}){% endif -%}
           </option>
           {% endfor %}
         </select>
@@ -20,25 +20,25 @@
       <span class="pill">{{ '%g'|format(song.bpm) if song.bpm else '–' }} BPM</span>
       <span class="pill">{{ song.time_signature }}</span>
       <span class="pill">{{ song.duration_seconds|duration }}</span>
-      {% if not practice %}<span class="muted">{{ song.tracks|length }} tracks · {{ song.total_bytes|filesize }}</span>{% endif %}
+      {% if not practice %}<span class="muted">{{ _('{n} tracks', n=song.tracks|length) }} · {{ song.total_bytes|filesize }}</span>{% endif %}
     </div>
   </div>
   {% if editable %}
   <div class="actions">
-    <a class="button" href="/songs/{{ song.id }}/edit">Edit details</a>
+    <a class="button" href="/songs/{{ song.id }}/edit">{{ _('Edit details') }}</a>
     <form method="post" action="/songs/{{ song.id }}/delete" class="inline"
-          data-confirm="Delete this song and all its audio? This cannot be undone.">
+          data-confirm="{{ _('Delete this song and all its audio? This cannot be undone.') }}">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="danger">Delete</button>
+      <button class="danger">{{ _('Delete') }}</button>
     </form>
   </div>
   {% endif %}
 </div>
 {% if practice %}{% if song.sections %}<div class="practice-sections">{% for sec in song.sections %}<button type="button" class="chip" data-time="{{ sec.start_seconds }}">{{ sec.name }}</button>{% endfor %}</div>{% endif %}
-{% elif not editable %}<p class="muted small catalog-note">You can play and download this song. Ask a church leader to make changes.</p>{% endif %}
+{% elif not editable %}<p class="muted small catalog-note">{{ _('You can play and download this song. Ask a church leader to make changes.') }}</p>{% endif %}
 {% if in_set %}
 <nav class="setlist-bar">
-  <a href="/setlists/{{ in_set.setlist.id }}" class="setlist-bar-name">☰ {{ in_set.setlist.name }} · {{ in_set.index + 1 }} of {{ in_set.setlist.items|length }}</a>
+  <a href="/setlists/{{ in_set.setlist.id }}" class="setlist-bar-name">☰ {{ in_set.setlist.name }} · {{ _('{n} of {total}', n=in_set.index + 1, total=in_set.setlist.items|length) }}</a>
   <span class="actions">
     {% if in_set.prev %}<a class="button small" href="/songs/{{ in_set.prev.id }}?setlist={{ in_set.setlist.id }}">← {{ in_set.prev.title }}</a>{% endif %}
     {% if in_set.next %}<a class="button small primary" href="/songs/{{ in_set.next.id }}?setlist={{ in_set.setlist.id }}">{{ in_set.next.title }} →</a>{% endif %}
@@ -48,8 +48,8 @@
 {% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
 
 <nav class="tabs" role="tablist">
-  <a href="?tab=mix" data-tab="mix" role="tab" class="{{ 'active' if tab == 'mix' }}">Mix</a>
-  <a href="?tab=chart" data-tab="chart" role="tab" class="{{ 'active' if tab == 'chart' }}">Chord chart</a>
+  <a href="?tab=mix" data-tab="mix" role="tab" class="{{ 'active' if tab == 'mix' }}">{{ _('Mix') }}</a>
+  <a href="?tab=chart" data-tab="chart" role="tab" class="{{ 'active' if tab == 'chart' }}">{{ _('Chord chart') }}</a>
 </nav>
 
 <div data-panel="mix" {{ 'hidden' if tab != 'mix' }}>
@@ -57,12 +57,12 @@
 {% if song.tracks %}
 <section class="card player" id="player">
   <div class="transport">
-    <button id="play" class="primary round" title="Play / pause (space)">▶</button>
-    <button id="stop" class="round" title="Back to start">■</button>
+    <button id="play" class="primary round" title="{{ _('Play / pause (space)') }}">▶</button>
+    <button id="stop" class="round" title="{{ _('Back to start') }}">■</button>
     <span id="clock" class="clock">0:00</span>
     <span class="muted small">/ {{ song.duration_seconds|duration }}</span>
     <span class="muted small" id="load-note"></span>
-    <span class="muted small preview-note">Browser preview. Full playback comes in the Mac app.</span>
+    <span class="muted small preview-note">{{ _('Browser preview. Full playback comes in the Mac app.') }}</span>
   </div>
   <div class="timeline" id="timeline" data-duration="{{ song.duration_seconds }}">
     {% for sec in song.sections %}
@@ -76,12 +76,12 @@
     <div class="strip role-{{ t.role }}" data-track="{{ t.id }}" data-src="/tracks/{{ t.id }}/audio"
          data-gain="{{ t.gain_db }}" data-pan="{{ t.pan }}" data-muted="{{ 1 if t.muted else 0 }}">
       <div class="ms">
-        <button type="button" class="solo" title="Solo">S</button>
-        <button type="button" class="mute {{ 'on' if t.muted }}" title="Mute">M</button>
+        <button type="button" class="solo" title="{{ _('Solo') }}">S</button>
+        <button type="button" class="mute {{ 'on' if t.muted }}" title="{{ _('Mute') }}">M</button>
       </div>
       <div class="strip-body">
         <div class="meter" aria-hidden="true"><div class="meter-fill"></div><div class="meter-peak"></div></div>
-        <div class="fader" tabindex="0" role="slider" aria-label="{{ t.name }} level"
+        <div class="fader" tabindex="0" role="slider" aria-label="{{ _('{name} level', name=t.name) }}"
              aria-valuemin="-60" aria-valuemax="12" aria-valuenow="{{ t.gain_db }}">
           <div class="fader-scale"></div>
           <div class="fader-slot"></div>
@@ -99,16 +99,16 @@
 {% if not practice %}
 <div class="grid-2">
 <section class="card" id="tracks">
-  <h2>Tracks</h2>
+  <h2>{{ _('Tracks') }}</h2>
   {% if editable %}
   <form id="upload" class="dropzone" method="post" action="/songs/{{ song.id }}/tracks" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input id="files" type="file" name="files" accept=".wav,.zip,audio/wav,audio/x-wav,application/zip" multiple>
     <label for="files">
-      <strong>Drop WAV stems or a ZIP here</strong> or click to choose.<br>
-      <span class="muted small">Files named “click” or “guide” are tagged automatically.</span>
+      <strong>{{ _('Drop WAV stems or a ZIP here') }}</strong> {{ _('or click to choose.') }}<br>
+      <span class="muted small">{{ _('Files named “click” or “guide” are tagged automatically.') }}</span>
     </label>
-    <noscript><button class="primary">Upload</button></noscript>
+    <noscript><button class="primary">{{ _('Upload') }}</button></noscript>
   </form>
   <ul id="upload-list" class="upload-list"></ul>
   {% endif %}
@@ -118,12 +118,12 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="tracks-bar">
       {% if editable %}
-      <span class="muted small" id="tracks-status">Locked. Click Edit tracks to make changes.</span>
+      <span class="muted small" id="tracks-status">{{ _('Locked. Click Edit tracks to make changes.') }}</span>
       <div class="actions">
-        <button type="button" id="tracks-edit" class="small">Edit tracks</button>
-        <button type="button" id="tracks-suggest" class="small" hidden title="Turn long filenames into standard names like Bajo, Acústica 2, Click">✨ Suggest names</button>
-        <button type="button" id="tracks-cancel" class="small" hidden>Cancel</button>
-        <button type="submit" id="tracks-save" class="small primary" hidden>Save changes</button>
+        <button type="button" id="tracks-edit" class="small">{{ _('Edit tracks') }}</button>
+        <button type="button" id="tracks-suggest" class="small" hidden title="{{ _('Turn long filenames into standard names like Bajo, Acústica 2, Click') }}">{{ _('✨ Suggest names') }}</button>
+        <button type="button" id="tracks-cancel" class="small" hidden>{{ _('Cancel') }}</button>
+        <button type="submit" id="tracks-save" class="small primary" hidden>{{ _('Save changes') }}</button>
       </div>
       {% endif %}
     </div>
@@ -133,25 +133,25 @@
       <li id="track-{{ t.id }}" class="track role-{{ t.role }}" data-id="{{ t.id }}" data-suggest="{{ suggest_name(t) }}">
         <input type="hidden" name="order" value="{{ t.id }}">
         <div class="track-form">
-          <input name="name-{{ t.id }}" value="{{ t.name }}" aria-label="Track name" class="name" required list="track-names" autocomplete="off" placeholder="Pick or type a name">
-          <select name="role-{{ t.id }}" aria-label="Role">
-            {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ r|capitalize }}</option>{% endfor %}
+          <input name="name-{{ t.id }}" value="{{ t.name }}" aria-label="{{ _('Track name') }}" class="name" required list="track-names" autocomplete="off" placeholder="{{ _('Pick or type a name') }}">
+          <select name="role-{{ t.id }}" aria-label="{{ _('Role') }}">
+            {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ _(r) if lang == 'es' else r|capitalize }}</option>{% endfor %}
           </select>
-          <label class="small">Gain <input name="gain-{{ t.id }}" type="number" step="0.5" min="-60" max="12" value="{{ t.gain_db }}"></label>
-          <label class="small">Pan <input name="pan-{{ t.id }}" type="number" step="0.1" min="-1" max="1" value="{{ t.pan }}"></label>
-          <label class="small check"><input type="checkbox" name="muted-{{ t.id }}" {{ 'checked' if t.muted }}> Muted</label>
-          <label class="small check delete-check edit-only"><input type="checkbox" name="delete-{{ t.id }}"> Remove</label>
+          <label class="small">{{ _('Gain') }} <input name="gain-{{ t.id }}" type="number" step="0.5" min="-60" max="12" value="{{ t.gain_db }}"></label>
+          <label class="small">{{ _('Pan') }} <input name="pan-{{ t.id }}" type="number" step="0.1" min="-1" max="1" value="{{ t.pan }}"></label>
+          <label class="small check"><input type="checkbox" name="muted-{{ t.id }}" {{ 'checked' if t.muted }}> {{ _('Muted') }}</label>
+          <label class="small check delete-check edit-only"><input type="checkbox" name="delete-{{ t.id }}"> {{ _('Remove') }}</label>
         </div>
         <div class="track-meta muted small">
           {{ t.original_filename }} · {{ t.sample_rate // 1000 if t.sample_rate % 1000 == 0 else t.sample_rate / 1000 }} kHz ·
           {{ t.bit_depth }}-bit{{ ' float' if t.sample_format == 'float' }} ·
-          {{ 'mono' if t.channels == 1 else ('stereo' if t.channels == 2 else t.channels ~ ' ch') }} ·
+          {{ _('mono') if t.channels == 1 else (_('stereo') if t.channels == 2 else t.channels ~ ' ch') }} ·
           {{ t.duration_seconds|duration }} · {{ t.size_bytes|filesize }}
         </div>
         <div class="track-actions">
-          <button type="button" class="icon edit-only move" data-dir="-1" title="Move up">↑</button>
-          <button type="button" class="icon edit-only move" data-dir="1" title="Move down">↓</button>
-          <a class="icon button" href="/tracks/{{ t.id }}/audio" download title="Download WAV">⤓</a>
+          <button type="button" class="icon edit-only move" data-dir="-1" title="{{ _('Move up') }}">↑</button>
+          <button type="button" class="icon edit-only move" data-dir="1" title="{{ _('Move down') }}">↓</button>
+          <a class="icon button" href="/tracks/{{ t.id }}/audio" download title="{{ _('Download WAV') }}">⤓</a>
         </div>
       </li>
     {% endfor %}
@@ -163,43 +163,43 @@
 </section>
 
 <section class="card" id="sections">
-  <h2>Sections</h2>
+  <h2>{{ _('Sections') }}</h2>
   {% if song.sections_status in ('queued', 'running') %}
   <div class="detect-status running" id="detect-status" data-url="/songs/{{ song.id }}/sections/status">
-    <span class="spinner"></span> Listening to the guide track for section cues…
+    <span class="spinner"></span> {{ _('Listening to the guide track for section cues…') }}
   </div>
   {% elif song.sections_note %}
-  <div class="detect-status {{ song.sections_status }}">{{ song.sections_note }}</div>
+  <div class="detect-status {{ song.sections_status }}">{{ tr(song.sections_note) }}</div>
   {% endif %}
   {% if song.sections %}
   <ol class="sections">
     {% for sec in song.sections %}
     <li>
       <button class="link jump" data-time="{{ sec.start_seconds }}">{{ fmt(sec.start_seconds) }}</button>
-      <span>{{ sec.name }}{% if sec.source == 'auto' %} <span class="auto-badge" title="Heard in the guide track">auto</span>{% endif %}</span>
+      <span>{{ sec.name }}{% if sec.source == 'auto' %} <span class="auto-badge" title="{{ _('Heard in the guide track') }}">auto</span>{% endif %}</span>
       {% if editable %}
       <form method="post" action="/sections/{{ sec.id }}/delete" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="icon danger" title="Remove">✕</button>
+        <button class="icon danger" title="{{ _('Remove') }}">✕</button>
       </form>
       {% endif %}
     </li>
     {% endfor %}
   </ol>
   {% elif editable %}
-  <p class="muted small">Add markers like Intro, Verse 1, Chorus so you can jump and loop in the player.</p>
+  <p class="muted small">{{ _('Add markers like Intro, Verse 1, Chorus so you can jump and loop in the player.') }}</p>
   {% else %}
-  <p class="muted small">No sections yet.</p>
+  <p class="muted small">{{ _('No sections yet.') }}</p>
   {% endif %}
   {% if editable %}
   <form method="post" action="/songs/{{ song.id }}/sections" class="row section-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <input name="name" placeholder="Chorus" list="section-names" required>
+    <input name="name" placeholder="{{ _('Chorus') }}" list="section-names" required>
     <input name="start" id="section-start" placeholder="1:23" required>
-    <button title="Use current player time" type="button" id="use-time" class="icon">⌖</button>
-    <button>Add</button>
+    <button title="{{ _('Use current player time') }}" type="button" id="use-time" class="icon">⌖</button>
+    <button>{{ _('Add') }}</button>
     <datalist id="section-names">
-      {% for n in ['Intro','Verse','Verse 1','Verse 2','Pre-Chorus','Chorus','Bridge','Instrumental','Interlude','Tag','Outro','Ending'] %}<option value="{{ n }}">{% endfor %}
+      {% for n in (['Intro','Verso','Verso 1','Verso 2','Pre-Coro','Coro','Puente','Instrumental','Interludio','Tag','Outro','Final'] if lang == 'es' else ['Intro','Verse','Verse 1','Verse 2','Pre-Chorus','Chorus','Bridge','Instrumental','Interlude','Tag','Outro','Ending']) %}<option value="{{ n }}">{% endfor %}
     </datalist>
   </form>
   {% endif %}
@@ -208,12 +208,12 @@
     <form method="post" action="/songs/{{ song.id }}/sections/detect" class="inline">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <button class="small" {{ 'disabled' if song.sections_status in ('queued', 'running') }}
-              title="Listen to the guide track and add its section cues. Sections you typed in are kept.">🎧 Detect from guide</button>
+              title="{{ _('Listen to the guide track and add its section cues. Sections you typed in are kept.') }}">{{ _('🎧 Detect from guide') }}</button>
     </form>
     {% if song.sections|selectattr('source', 'equalto', 'auto')|list %}
     <form method="post" action="/songs/{{ song.id }}/sections/clear-auto" class="inline">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="small link">Clear auto sections</button>
+      <button class="small link">{{ _('Clear auto sections') }}</button>
     </form>
     {% endif %}
   </div>
@@ -228,14 +228,14 @@
     <div class="chart-toolbar">
       <span class="muted small" id="chart-key-label"></span>
       <div class="actions">
-        <button type="button" class="small" id="chart-smaller" title="Smaller text">A−</button>
-        <button type="button" class="small" id="chart-larger" title="Larger text">A+</button>
-        <button type="button" class="small" onclick="window.print()">Print</button>
-        {% if editable %}<button type="button" class="small primary" id="chart-edit">{{ 'Edit chart' if song.chart else 'Add chart' }}</button>{% endif %}
+        <button type="button" class="small" id="chart-smaller" title="{{ _('Smaller text') }}">A−</button>
+        <button type="button" class="small" id="chart-larger" title="{{ _('Larger text') }}">A+</button>
+        <button type="button" class="small" onclick="window.print()">{{ _('Print') }}</button>
+        {% if editable %}<button type="button" class="small primary" id="chart-edit">{{ _('Edit chart') if song.chart else _('Add chart') }}</button>{% endif %}
       </div>
     </div>
     <div id="chart-view" class="chart">
-      {% if not song.chart %}<p class="muted empty-chart">No chord chart yet.{% if editable %} Click “Add chart” and paste one in.{% endif %}</p>{% endif %}
+      {% if not song.chart %}<p class="muted empty-chart">{{ _('No chord chart yet.') }}{% if editable %} {{ _('Click “Add chart” and paste one in.') }}{% endif %}</p>{% endif %}
     </div>
     {% if editable %}
     <form id="chart-form" method="post" action="/songs/{{ song.id }}/chart" class="stack" hidden>
@@ -245,10 +245,10 @@
                   placeholder="[Verse 1]&#10;E              B&#10;You are here, moving in our midst&#10;&#10;[Chorus]&#10;Way[E]maker, [B]miracle worker">{{ song.chart }}</textarea>
         <div class="chart-preview chart" id="chart-preview"></div>
       </div>
-      <p class="muted small">Write chords in the original key ({{ song.key or 'not set' }}). Put chords on their own line above the lyrics, or inline in brackets like <code>Way[E]maker</code>. Section names go on their own line: <code>[Chorus]</code>, <code>Bridge:</code> or <code>{c: Tag}</code>.</p>
+      <p class="muted small">{{ _('Write chords in the original key ({key}). Put chords on their own line above the lyrics, or inline in brackets like <code>Way[E]maker</code>. Section names go on their own line: <code>[Chorus]</code>, <code>Bridge:</code> or <code>{{c: Tag}}</code>.', key=song.key or _('not set'))|safe }}</p>
       <div class="row end">
-        <button type="button" id="chart-cancel">Cancel</button>
-        <button class="primary">Save chart</button>
+        <button type="button" id="chart-cancel">{{ _('Cancel') }}</button>
+        <button class="primary">{{ _('Save chart') }}</button>
       </div>
     </form>
     {% endif %}

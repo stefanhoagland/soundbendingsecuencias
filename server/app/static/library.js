@@ -22,7 +22,7 @@
       xhr.upload.onprogress = (e) => {
         if (!e.lengthComputable) return;
         bar.value = (e.loaded / e.total) * 100;
-        if (e.loaded === e.total) status.textContent = "Unpacking…";
+        if (e.loaded === e.total) status.textContent = T("Unpacking…");
       };
       xhr.onload = () => {
         let data = {};
@@ -42,7 +42,7 @@
         }
         resolve(songs);
       };
-      xhr.onerror = () => { status.textContent = "Network error"; li.classList.add("error"); resolve([]); };
+      xhr.onerror = () => { status.textContent = T("Network error"); li.classList.add("error"); resolve([]); };
       xhr.send(body);
     });
   }
@@ -52,7 +52,7 @@
     if (zips.length < files.length) {
       const li = document.createElement("li");
       li.className = "error";
-      li.textContent = "Only ZIP files can be dropped here. Add single WAVs from a song's page.";
+      li.textContent = T("Only ZIP files can be dropped here. Add single WAVs from a song's page.");
       list.appendChild(li);
     }
     if (!zips.length) return;
