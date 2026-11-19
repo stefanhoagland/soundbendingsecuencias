@@ -269,6 +269,40 @@ def update_track(track: Track, *, name=None, role=None, gain_db=None, pan=None, 
         track.muted = bool(muted)
 
 
+def save_tracks(db: Session, library_dir: Path, song: Song, form) -> int:
+    """Apply the whole track list from the song page in one go: edits, order and removals.
+    Validates everything first so a bad value changes nothing. Returns tracks removed."""
+    by_id = {t.id: t for t in song.tracks}
+    order = [int(x) for x in form.getlist("order") if str(x).isdigit() and int(x) in by_id]
+    order += [tid for tid in by_id if tid not in order]
+    removing = [by_id[tid] for tid in order if form.get(f"delete-{tid}")]
+    try:
+        for tid in order:
+            if by_id[tid] in removing:
+                continue
+            update_track(
+                by_id[tid],
+                name=form.get(f"name-{tid}", by_id[tid].name),
+                role=form.get(f"role-{tid}", by_id[tid].role),
+                gain_db=form.get(f"gain-{tid}", by_id[tid].gain_db),
+                pan=form.get(f"pan-{tid}", by_id[tid].pan),
+                muted=bool(form.get(f"muted-{tid}")),
+            )
+    except ValidationError:
+        db.rollback()
+        raise
+    keep = [tid for tid in order if by_id[tid] not in removing]
+    for pos, tid in enumerate(keep):
+        by_id[tid].position = pos
+    files = [(t.song_id, t.stored_filename) for t in removing]
+    for t in removing:
+        db.delete(t)
+    db.commit()
+    for song_id, stored in files:
+        delete_track_file(library_dir, song_id, stored)
+    return len(removing)
+
+
 def move_track(db: Session, track: Track, direction: int) -> None:
     tracks = list(track.song.tracks)
     idx = tracks.index(track)
