@@ -20,17 +20,26 @@
       xhr.open("POST", uploadForm.action);
       xhr.setRequestHeader("X-CSRF-Token", window.CSRF);
       xhr.setRequestHeader("X-Requested-With", "fetch");
-      xhr.upload.onprogress = (e) => { if (e.lengthComputable) bar.value = (e.loaded / e.total) * 100; };
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        bar.value = (e.loaded / e.total) * 100;
+        if (e.loaded === e.total && /\.zip$/i.test(file.name)) status.textContent = "Unpacking…";
+      };
       xhr.onload = () => {
         let data = {};
         try { data = JSON.parse(xhr.responseText); } catch (_) {}
         if (xhr.status === 200 && !(data.errors || []).length) {
-          bar.value = 100; status.textContent = "✓"; li.classList.add("ok");
+          bar.value = 100; li.classList.add("ok");
+          const n = (data.created || []).length;
+          status.textContent = /\.zip$/i.test(file.name) ? `✓ ${n} track${n === 1 ? "" : "s"}` : "✓";
+        } else if (xhr.status === 200) {
+          status.textContent = `${(data.created || []).length} added. ` + data.errors.join(" ");
+          li.classList.add("error");
         } else {
           status.textContent = (data.errors && data.errors.join(" ")) || data.detail || "Upload failed";
           li.classList.add("error");
         }
-        resolve(xhr.status === 200);
+        resolve(xhr.status === 200 && (data.created || []).length > 0);
       };
       xhr.onerror = () => { status.textContent = "Network error"; li.classList.add("error"); resolve(false); };
       xhr.send(body);
@@ -38,12 +47,12 @@
   }
 
   async function uploadAll(files) {
-    const wavs = [...files].filter((f) => /\.wav$/i.test(f.name) || /wav/.test(f.type));
+    const wavs = [...files].filter((f) => /\.(wav|zip)$/i.test(f.name) || /wav|zip/.test(f.type));
     const skipped = files.length - wavs.length;
     if (skipped) {
       const li = document.createElement("li");
       li.className = "error";
-      li.textContent = `Skipped ${skipped} file(s) that aren't WAV.`;
+      li.textContent = `Skipped ${skipped} file(s) that aren't WAV or ZIP.`;
       list.appendChild(li);
     }
     if (!wavs.length) return;

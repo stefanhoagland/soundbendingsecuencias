@@ -79,9 +79,9 @@
   <h2>Tracks</h2>
   <form id="upload" class="dropzone" method="post" action="/songs/{{ song.id }}/tracks" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <input id="files" type="file" name="files" accept=".wav,audio/wav,audio/x-wav" multiple>
+    <input id="files" type="file" name="files" accept=".wav,.zip,audio/wav,audio/x-wav,application/zip" multiple>
     <label for="files">
-      <strong>Drop WAV stems here</strong> or click to choose.<br>
+      <strong>Drop WAV stems or a ZIP here</strong> or click to choose.<br>
       <span class="muted small">Files named “click” or “guide” are tagged automatically.</span>
     </label>
     <noscript><button class="primary">Upload</button></noscript>

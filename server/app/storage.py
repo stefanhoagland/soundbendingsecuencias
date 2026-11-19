@@ -7,6 +7,7 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+from typing import BinaryIO
 
 from fastapi import UploadFile
 
@@ -40,6 +41,29 @@ async def save_upload(library_dir: Path, song_id: int, upload: UploadFile) -> tu
                 size += len(chunk)
         with partial.open("rb") as fh:
             info = read_wav_info(fh)
+        os.replace(partial, target_dir / stored)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    return stored, size, digest.hexdigest(), info
+
+
+def save_fileobj(library_dir: Path, song_id: int, fh: BinaryIO) -> tuple[str, int, str, WavInfo]:
+    """Synchronous twin of save_upload, for files pulled out of a ZIP."""
+    target_dir = song_dir(library_dir, song_id)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    stored = f"{uuid.uuid4().hex}.wav"
+    partial = target_dir / (stored + ".part")
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        with partial.open("wb") as out:
+            while chunk := fh.read(CHUNK):
+                out.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+        with partial.open("rb") as check:
+            info = read_wav_info(check)
         os.replace(partial, target_dir / stored)
     except BaseException:
         partial.unlink(missing_ok=True)

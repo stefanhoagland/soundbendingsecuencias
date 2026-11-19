@@ -157,3 +157,73 @@ def test_old_database_gets_new_columns(tmp_path, monkeypatch):
     create_app(settings)
     cols = {row[1] for row in sqlite3.connect(settings.db_path).execute("PRAGMA table_info(songs)")}
     assert {"chart", "transpose"} <= cols
+
+
+def _zip(entries):
+    import io as _io
+    import zipfile
+
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in entries:
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_zip_upload_to_song(web, wav):
+    song_id = _new_song(web)
+    data = _zip([
+        ("Way Maker/10 Pad.wav", wav(1)),
+        ("Way Maker/2 Click.wav", wav(1)),
+        ("Way Maker/1 Drums.wav", wav(2)),
+        ("__MACOSX/Way Maker/._1 Drums.wav", b"junk"),
+        ("Way Maker/readme.txt", b"hi"),
+        ("Way Maker/broken.wav", b"nope nope nope"),
+    ])
+    r = web.post(
+        f"/songs/{song_id}/tracks",
+        headers={"X-CSRF-Token": web.csrf, "X-Requested-With": "fetch"},
+        files=[("files", ("stems.zip", data, "application/zip"))],
+    )
+    assert r.status_code == 200
+    assert len(r.json()["created"]) == 3
+    assert r.json()["errors"] == ["broken.wav: Not a WAV file (missing RIFF/WAVE header)"]
+    page = web.get(f"/songs/{song_id}").text
+    # natural order: 1, 2, 10
+    assert page.index('value="1 Drums"') < page.index('value="2 Click"') < page.index('value="10 Pad"')
+    assert "role-click" in page
+
+
+def test_new_song_from_zip(web, wav):
+    data = _zip([("Bass.wav", wav(1)), ("Keys.wav", wav(1))])
+    r = web.post(
+        "/songs/from-zip",
+        headers={"X-CSRF-Token": web.csrf, "X-Requested-With": "fetch"},
+        files=[("files", ("Way Maker - E - 68bpm.zip", data, "application/zip"))],
+    )
+    assert r.status_code == 200, r.text
+    song = r.json()["songs"][0]
+    assert song["title"] == "Way Maker"
+    page = web.get(song["url"]).text
+    assert "68 BPM" in page and 'value="Bass"' in page and 'value="Keys"' in page
+    assert "E (original)" in page
+
+
+def test_zip_without_wavs_creates_nothing(web):
+    r = web.post(
+        "/songs/from-zip",
+        headers={"X-CSRF-Token": web.csrf, "X-Requested-With": "fetch"},
+        files=[("files", ("Empty.zip", _zip([("notes.txt", b"x")]), "application/zip"))],
+    )
+    assert r.status_code == 422
+    assert "no WAV files" in r.json()["errors"][0]
+    assert "Empty" not in web.get("/").text.split("<table")[-1]
+
+
+def test_song_fields_from_filename():
+    from app.services import song_fields_from_filename as f
+
+    assert f("Way Maker - E - 68bpm.zip") == {"title": "Way Maker", "bpm": 68.0, "key": "E"}
+    assert f("Goodness_of_God_Ab_63BPM.zip") == {"title": "Goodness of God", "bpm": 63.0, "key": "Ab"}
+    assert f("Gratitude - Key of Bb - 72 BPM.zip") == {"title": "Gratitude", "bpm": 72.0, "key": "Bb"}
+    assert f("Plan A.zip") == {"title": "Plan A", "bpm": None, "key": ""}

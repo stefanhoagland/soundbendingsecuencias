@@ -187,3 +187,5 @@ table.songs td:first-child a { color: var(--text); font-weight: 600; }
   .chart b, .chart .c-heading { color: #000; }
   .keyctl { border: none; }
 }
+.dropzone.compact { padding: 1rem; margin-bottom: .6rem; }
+.upload-list a { color: var(--ok); }
