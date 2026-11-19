@@ -190,7 +190,7 @@ def test_zip_upload_to_song(web, wav):
     assert r.json()["errors"] == ["broken.wav: Not a WAV file (missing RIFF/WAVE header)"]
     page = web.get(f"/songs/{song_id}").text
     # natural order: 1, 2, 10
-    assert page.index('value="1 Drums"') < page.index('value="2 Click"') < page.index('value="10 Pad"')
+    assert page.index('value="Batería"') < page.index('value="Click"') < page.index('value="Pad"')
     assert "role-click" in page
 
 
@@ -205,7 +205,7 @@ def test_new_song_from_zip(web, wav):
     song = r.json()["songs"][0]
     assert song["title"] == "Way Maker"
     page = web.get(song["url"]).text
-    assert "68 BPM" in page and 'value="Bass"' in page and 'value="Keys"' in page
+    assert "68 BPM" in page and 'value="Bajo"' in page and 'value="Teclado"' in page
     assert "E (original)" in page
 
 
@@ -260,3 +260,25 @@ def test_save_all_tracks_at_once(web, wav, app):
     web.post(f"/songs/{song_id}/tracks/save", data=bad)
     page = web.get(f"/songs/{song_id}").text
     assert 'value="Changed"' not in page
+
+
+def test_track_names_cleaned_on_upload_and_picker(web, wav):
+    song_id = _new_song(web, title="Way Maker")
+    web.post(
+        f"/songs/{song_id}/tracks",
+        data={"csrf": web.csrf},
+        files=[
+            wav_file("Way Maker_E_68bpm_BASS_48k_24bit.wav", wav(1)),
+            wav_file("07 - Electric Gtr 2.wav", wav(1)),
+            wav_file("WayMaker_Guia.wav", wav(1)),
+            wav_file("My Weird Thing.wav", wav(1)),
+        ],
+    )
+    page = web.get(f"/songs/{song_id}").text
+    for name in ("Bajo", "Eléctrica 2", "Guía", "My Weird Thing"):
+        assert f'value="{name}"' in page, name
+    assert re.search(r'class="track role-guide"[^>]*data-suggest="Guía"', page)
+    # picker offers standard names and remembers custom ones
+    datalist = page.split('<datalist id="track-names">')[1].split("</datalist>")[0]
+    for n in ("Click", "Acústica 2", "Bajo Sintético", "Armónica", "My Weird Thing"):
+        assert f'<option value="{n}">' in datalist, n

@@ -84,15 +84,39 @@
     const originalOrder = [...list.children];
     let dirty = false;
 
+    const suggestBtn = document.getElementById("tracks-suggest");
     const setEditing = (on) => {
       fields.disabled = !on;
       tracksForm.classList.toggle("editing", on);
-      editBtn.hidden = on; saveBtn.hidden = !on; cancelBtn.hidden = !on;
+      editBtn.hidden = on; saveBtn.hidden = !on; cancelBtn.hidden = !on; suggestBtn.hidden = !on;
       status.textContent = on ? "Editing. Changes aren't saved until you click Save changes." : "Locked. Click Edit tracks to make changes.";
     };
     const markDirty = () => { dirty = true; status.textContent = "Unsaved changes."; };
 
     editBtn.addEventListener("click", () => setEditing(true));
+    suggestBtn.addEventListener("click", () => {
+      let changed = 0;
+      list.querySelectorAll(".track").forEach((li) => {
+        const input = li.querySelector(".name");
+        const name = li.dataset.suggest;
+        if (name && input.value !== name) { input.value = name; changed++; }
+        // A name like "Click" or "Guía" also sets the role.
+        const role = li.querySelector("select");
+        const n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        if (n === "click") role.value = "click";
+        else if (n.startsWith("guia") || n === "cues" || n === "conteo") role.value = "guide";
+      });
+      markDirty();
+      status.textContent = changed ? `Suggested ${changed} name${changed === 1 ? "" : "s"}. Check them, then Save changes.` : "Names already look tidy.";
+    });
+    // Picking "Click"/"Guía" from the list sets the role too.
+    list.addEventListener("change", (e) => {
+      if (!e.target.classList.contains("name")) return;
+      const n = e.target.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const role = e.target.closest(".track").querySelector("select");
+      if (n === "click") role.value = "click";
+      else if (n.startsWith("guia")) role.value = "guide";
+    });
     cancelBtn.addEventListener("click", () => {
       tracksForm.reset();
       originalOrder.forEach((li) => list.appendChild(li));
