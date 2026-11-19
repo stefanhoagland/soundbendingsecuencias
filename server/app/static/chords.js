@@ -19,10 +19,16 @@
   SHARPS.forEach((n, i) => (PITCH[n] = i));
   FLATS.forEach((n, i) => (PITCH[n] = i));
   Object.assign(PITCH, { Cb: 11, Fb: 4, "E#": 5, "B#": 0 });
+  // Latin (Do-Re-Mi) note names, common in Spanish charts.
+  const LATIN_SHARPS = ["Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"];
+  const LATIN_FLATS = ["Do", "Reb", "Re", "Mib", "Mi", "Fa", "Solb", "Sol", "Lab", "La", "Sib", "Si"];
+  const LATIN = { do: 0, re: 2, mi: 4, fa: 5, sol: 7, la: 9, si: 11 };
   const FLAT_KEYS = new Set(["F", "Bb", "Eb", "Ab", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "Bbm", "Ebm"]);
 
   // Root, quality (restricted so words like "Bridge" or "Each" are not chords), optional bass.
-  const CHORD_RE = /^([A-G])([#b]?)((?:maj|min|dim|aug|sus|add|alt|no|omit|m|M|[0-9]|[+\-#b()°ø^Δ,])*)(?:\/([A-G])([#b]?))?$/;
+  const ROOT = "([A-G]|Do|Re|Mi|Fa|Sol|La|Si|DO|RE|MI|FA|SOL|LA|SI)";
+  const CHORD_RE = new RegExp(
+    "^" + ROOT + "([#b♯♭]?)((?:maj|min|dim|aug|sus|add|alt|no|omit|m|M|[0-9]|[+\\-#b()°º△ø^Δ,])*)(?:\\/" + ROOT + "([#b♯♭]?))?$");
   const FILLER_RE = /^(\||\|\||-+|\/|%|x\d+|\(x?\d+x?\)|N\.?C\.?|\(|\)|\.+|:\|\||\|\|:)$/i;
   const DIRECTIVE_RE = /^\s*\{\s*([a-z_]+)\s*(?::\s*(.*?))?\s*\}\s*$/i;
   const HEADING_RE = /^\s*(?:\[([^\]]+)\]|([A-Za-z][A-Za-z0-9 \-']{0,30}):)\s*$/;
@@ -47,8 +53,19 @@
     return s === f ? s : FLAT_KEYS.has(f) ? f : s;
   }
 
-  function shiftNote(note, semitones, flats) {
-    const p = (((PITCH[note] + semitones) % 12) + 12) % 12;
+  function pitchOf(root, acc) {
+    acc = acc === "♯" ? "#" : acc === "♭" ? "b" : acc;
+    const latin = LATIN[root.toLowerCase()];
+    const base = latin !== undefined ? latin : PITCH[root];
+    return base + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+  }
+
+  function shiftNote(root, acc, semitones, flats) {
+    const p = (((pitchOf(root, acc) + semitones) % 12) + 12) % 12;
+    if (LATIN[root.toLowerCase()] !== undefined) {
+      const name = (flats ? LATIN_FLATS : LATIN_SHARPS)[p];
+      return root === root.toUpperCase() ? name.toUpperCase().replace("B", "b") : name;
+    }
     return (flats ? FLATS : SHARPS)[p];
   }
 
@@ -58,8 +75,8 @@
     const m = CHORD_RE.exec(chord);
     if (!m) return chord;
     const [, r, ra, quality, b, ba] = m;
-    let out = shiftNote(r + ra, semitones, flats) + quality;
-    if (b) out += "/" + shiftNote(b + ba, semitones, flats);
+    let out = shiftNote(r, ra, semitones, flats) + quality;
+    if (b) out += "/" + shiftNote(b, ba, semitones, flats);
     return out;
   }
 
@@ -143,6 +160,12 @@
           out.push({ type: "heading", text: label });
           continue;
         }
+      }
+      const labelled = /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 \-']{0,24}):\s+(.+)$/.exec(line);
+      if (labelled && isChordLine(labelled[2])) {
+        out.push({ type: "heading", text: labelled[1].trim() });
+        out.push({ type: "chords", chords: transposeChordLine(labelled[2], semitones, flats), chorus: inChorus });
+        continue;
       }
       if (isChordLine(line)) {
         const chords = transposeChordLine(line, semitones, flats);
