@@ -94,15 +94,40 @@ async def check_csrf(request: Request) -> None:
         raise HTTPException(400, "Form expired, please go back and try again")
 
 
-def owned_song(song_id: int, user: User, db: Session) -> Song:
+def can_view(user: User, song: Song) -> bool:
+    if user.is_admin:
+        return True
+    if song.church_id is not None:
+        return song.church_id == user.church_id
+    return song.owner_id == user.id
+
+
+def can_edit(user: User, song: Song) -> bool:
+    """Admins edit everything; church leaders edit their church's songs; members only play."""
+    if user.is_admin:
+        return True
+    if song.church_id is not None:
+        return song.church_id == user.church_id and user.church_role == "leader"
+    return song.owner_id == user.id and user.church_id is None
+
+
+def owned_song(song_id: int, user: User, db: Session, *, edit: bool = True) -> Song:
     song = db.get(Song, song_id)
-    if song is None or song.owner_id != user.id:
+    if song is None or not can_view(user, song):
         raise HTTPException(404, "Song not found")
+    if edit and not can_edit(user, song):
+        raise HTTPException(403, "You can play this song but not change it")
     return song
 
 
-def owned_track(track_id: int, user: User, db: Session) -> Track:
+def owned_track(track_id: int, user: User, db: Session, *, edit: bool = True) -> Track:
     track = db.get(Track, track_id)
-    if track is None or track.song.owner_id != user.id:
+    if track is None or not can_view(user, track.song):
         raise HTTPException(404, "Track not found")
+    if edit and not can_edit(user, track.song):
+        raise HTTPException(403, "You can play this song but not change it")
     return track
+
+
+def can_add_songs(user: User) -> bool:
+    return user.is_admin or user.church_id is None or user.church_role == "leader"

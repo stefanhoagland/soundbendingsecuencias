@@ -3,13 +3,13 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <a class="muted small" href="/">← Library</a>
+    <a class="muted small" href="{{ back_url }}">← Library</a>
     <h1>{{ song.title }}</h1>
     <div class="meta">
       {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
       <label class="keyctl" title="Change the key you play in. Shifts the chord chart and the preview audio.">
         Key
-        <select id="transpose" data-url="/songs/{{ song.id }}/transpose" data-key="{{ song.key }}">
+        <select id="transpose" {% if editable %}data-url="/songs/{{ song.id }}/transpose"{% endif %} data-key="{{ song.key }}">
           {% for n, k in transpose_options %}
           <option value="{{ n }}" {{ 'selected' if n == song.transpose }}>
             {%- if n == 0 %}{{ k or 'Original' }} (original){% else %}{{ k ~ ' ' if k }}({{ '%+d'|format(n) }}){% endif -%}
@@ -23,6 +23,7 @@
       <span class="muted">{{ song.tracks|length }} tracks · {{ song.total_bytes|filesize }}</span>
     </div>
   </div>
+  {% if editable %}
   <div class="actions">
     <a class="button" href="/songs/{{ song.id }}/edit">Edit details</a>
     <form method="post" action="/songs/{{ song.id }}/delete" class="inline"
@@ -31,7 +32,9 @@
       <button class="danger">Delete</button>
     </form>
   </div>
+  {% endif %}
 </div>
+{% if not editable %}<p class="muted small catalog-note">You can play and download this song. Ask a church leader to make changes.</p>{% endif %}
 {% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
 
 <nav class="tabs" role="tablist">
@@ -86,6 +89,7 @@
 <div class="grid-2">
 <section class="card" id="tracks">
   <h2>Tracks</h2>
+  {% if editable %}
   <form id="upload" class="dropzone" method="post" action="/songs/{{ song.id }}/tracks" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input id="files" type="file" name="files" accept=".wav,.zip,audio/wav,audio/x-wav,application/zip" multiple>
@@ -96,11 +100,13 @@
     <noscript><button class="primary">Upload</button></noscript>
   </form>
   <ul id="upload-list" class="upload-list"></ul>
+  {% endif %}
 
   {% if song.tracks %}
   <form id="tracks-form" method="post" action="/songs/{{ song.id }}/tracks/save" class="tracks-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="tracks-bar">
+      {% if editable %}
       <span class="muted small" id="tracks-status">Locked. Click Edit tracks to make changes.</span>
       <div class="actions">
         <button type="button" id="tracks-edit" class="small">Edit tracks</button>
@@ -108,6 +114,7 @@
         <button type="button" id="tracks-cancel" class="small" hidden>Cancel</button>
         <button type="submit" id="tracks-save" class="small primary" hidden>Save changes</button>
       </div>
+      {% endif %}
     </div>
     <fieldset id="tracks-fields" disabled>
     <ul class="tracks">
@@ -159,16 +166,21 @@
     <li>
       <button class="link jump" data-time="{{ sec.start_seconds }}">{{ fmt(sec.start_seconds) }}</button>
       <span>{{ sec.name }}{% if sec.source == 'auto' %} <span class="auto-badge" title="Heard in the guide track">auto</span>{% endif %}</span>
+      {% if editable %}
       <form method="post" action="/sections/{{ sec.id }}/delete" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="icon danger" title="Remove">✕</button>
       </form>
+      {% endif %}
     </li>
     {% endfor %}
   </ol>
-  {% else %}
+  {% elif editable %}
   <p class="muted small">Add markers like Intro, Verse 1, Chorus so you can jump and loop in the player.</p>
+  {% else %}
+  <p class="muted small">No sections yet.</p>
   {% endif %}
+  {% if editable %}
   <form method="post" action="/songs/{{ song.id }}/sections" class="row section-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input name="name" placeholder="Chorus" list="section-names" required>
@@ -179,7 +191,8 @@
       {% for n in ['Intro','Verse','Verse 1','Verse 2','Pre-Chorus','Chorus','Bridge','Instrumental','Interlude','Tag','Outro','Ending'] %}<option value="{{ n }}">{% endfor %}
     </datalist>
   </form>
-  {% if has_guide %}
+  {% endif %}
+  {% if has_guide and editable %}
   <div class="row detect-actions">
     <form method="post" action="/songs/{{ song.id }}/sections/detect" class="inline">
       <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -206,12 +219,13 @@
         <button type="button" class="small" id="chart-smaller" title="Smaller text">A−</button>
         <button type="button" class="small" id="chart-larger" title="Larger text">A+</button>
         <button type="button" class="small" onclick="window.print()">Print</button>
-        <button type="button" class="small primary" id="chart-edit">{{ 'Edit chart' if song.chart else 'Add chart' }}</button>
+        {% if editable %}<button type="button" class="small primary" id="chart-edit">{{ 'Edit chart' if song.chart else 'Add chart' }}</button>{% endif %}
       </div>
     </div>
     <div id="chart-view" class="chart">
-      {% if not song.chart %}<p class="muted empty-chart">No chord chart yet. Click “Add chart” and paste one in.</p>{% endif %}
+      {% if not song.chart %}<p class="muted empty-chart">No chord chart yet.{% if editable %} Click “Add chart” and paste one in.{% endif %}</p>{% endif %}
     </div>
+    {% if editable %}
     <form id="chart-form" method="post" action="/songs/{{ song.id }}/chart" class="stack" hidden>
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <div class="chart-editor">
@@ -225,6 +239,7 @@
         <button class="primary">Save chart</button>
       </div>
     </form>
+    {% endif %}
   </section>
 </div>
 <script type="application/json" id="chart-src">{{ song.chart|tojson }}</script>

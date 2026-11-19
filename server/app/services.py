@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from .audio import InvalidWav, guess_role, track_name_from_filename
 from .music import transpose_key
 from .track_names import clean_name, picker_names, role_for_name  # noqa: F401  (re-exported)
-from .models import TRACK_ROLES, Section, Song, Track, User
+from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Song, Track, User
 from .security import hash_password
 from .storage import delete_song_dir, delete_track_file, save_fileobj, save_upload
 
@@ -108,8 +109,12 @@ def apply_song_fields(song: Song, *, title, artist, bpm, key, time_signature, no
     song.notes = (notes or "").strip()
 
 
-def list_songs(db: Session, user: User, q: str = "") -> list[Song]:
-    stmt = select(Song).where(Song.owner_id == user.id)
+def list_songs(db: Session, user: User, q: str = "", church: Church | None = None) -> list[Song]:
+    """A church's library, or the user's own personal library."""
+    if church is not None:
+        stmt = select(Song).where(Song.church_id == church.id)
+    else:
+        stmt = select(Song).where(Song.owner_id == user.id, Song.church_id.is_(None))
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(Song.title.ilike(like) | Song.artist.ilike(like))
@@ -353,7 +358,7 @@ def add_section(db: Session, song: Song, name: str, start) -> Section:
     return section
 
 
-def create_user(db: Session, username: str, password: str, *, display_name: str = "", is_admin=False) -> User:
+def validate_new_user(db: Session, username: str, password: str) -> str:
     username = (username or "").strip().lower()
     if not re.fullmatch(r"[a-z0-9_.-]{2,64}", username):
         raise ValidationError("Username must be 2-64 letters, numbers, dots, dashes or underscores")
@@ -361,11 +366,27 @@ def create_user(db: Session, username: str, password: str, *, display_name: str 
         raise ValidationError("Password must be at least 8 characters")
     if db.scalar(select(User).where(User.username == username)):
         raise ValidationError("That username is taken")
+    return username
+
+
+def create_user(
+    db: Session,
+    username: str,
+    password: str,
+    *,
+    display_name: str = "",
+    is_admin=False,
+    church: Church | None = None,
+    church_role: str = "member",
+) -> User:
+    username = validate_new_user(db, username, password)
     user = User(
         username=username,
         display_name=(display_name or "").strip() or username,
         password_hash=hash_password(password),
-        is_admin=is_admin,
+        is_admin=is_admin and church is None,
+        church=church,
+        church_role=church_role if church_role in CHURCH_ROLES else "member",
     )
     db.add(user)
     db.commit()
@@ -377,3 +398,47 @@ def set_password(db: Session, user: User, password: str) -> None:
         raise ValidationError("Password must be at least 8 characters")
     user.password_hash = hash_password(password)
     db.commit()
+
+
+# ---- churches ---------------------------------------------------------------
+
+
+def slugify(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")[:64]
+
+
+def create_church(db: Session, name: str, slug: str = "") -> Church:
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("Church name is required")
+    slug = slugify(slug or name)
+    if not slug:
+        raise ValidationError("Pick a web address with letters or numbers")
+    if db.scalar(select(Church).where(Church.slug == slug)):
+        raise ValidationError(f"The address /c/{slug} is taken")
+    church = Church(name=name[:128], slug=slug)
+    db.add(church)
+    db.commit()
+    return church
+
+
+def set_church_role(db: Session, user: User, role: str) -> None:
+    if role not in CHURCH_ROLES:
+        raise ValidationError("Unknown role")
+    user.church_role = role
+    db.commit()
+
+
+def delete_church(db: Session, library_dir, church: Church) -> None:
+    """Delete a church with its own songs (and audio) and its members' logins."""
+    for song in list(church.songs):
+        delete_song(db, library_dir, song)
+    db.expire_all()
+    for member in list(church.members):
+        for song in list(member.songs):
+            delete_song(db, library_dir, song)
+        db.delete(member)
+    db.delete(church)
+    db.commit()
+
