@@ -160,6 +160,20 @@ def click_phase(path: Path, bpm: float | None, beats_per_bar: int) -> float:
         return 0.0
 
 
+def load_for_whisper(path: Path):
+    """Read the WAV ourselves (any bit depth, float, RF64) as 16 kHz mono float32,
+    rather than relying on the PyAV decoder inside faster-whisper."""
+    import numpy as np
+
+    from .audio import read_mono
+
+    samples, rate = read_mono(path)
+    if rate != 16000 and len(samples):
+        n = int(round(len(samples) * 16000 / rate))
+        samples = np.interp(np.linspace(0, len(samples) - 1, n), np.arange(len(samples)), samples)
+    return np.ascontiguousarray(samples, dtype=np.float32)
+
+
 class WhisperTranscriber:
     """Loads the model on first use and keeps it in memory."""
 
@@ -180,10 +194,11 @@ class WhisperTranscriber:
         return self._model
 
     def transcribe(self, path: Path) -> list[Word]:
+        audio = load_for_whisper(path)
         with self._lock:
             model = self._load()
             segments, _info = model.transcribe(
-                str(path),
+                audio,
                 language="en",
                 word_timestamps=True,
                 initial_prompt=INITIAL_PROMPT,

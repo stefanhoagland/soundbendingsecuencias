@@ -128,3 +128,12 @@ def test_real_whisper_on_spoken_guide(tmp_path):
     assert [c.label for c in cues] == ["Intro", "Verse 1", "Chorus", "Verse 2", "Bridge", "Ending"]
     for i, c in enumerate(cues):
         assert abs(c.start - i * gap) < 1.0
+
+
+def test_load_for_whisper_resamples_to_16k(tmp_path, wav):
+    from app.guide import load_for_whisper
+
+    p = tmp_path / "g.wav"
+    p.write_bytes(wav(seconds=2, rate=48000, channels=2, bits=24))
+    audio = load_for_whisper(p)
+    assert audio.dtype.name == "float32" and abs(len(audio) - 32000) <= 1
