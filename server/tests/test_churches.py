@@ -162,3 +162,25 @@ def test_api_scopes_to_church(app, web, wav):
     assert c.get(manifest["tracks"][0]["audio_url"], headers=h).status_code == 200
     assert c.put(f"/api/songs/{song_id}", headers=h, json={"title": "X", "key": "E"}).status_code == 403
     assert c.post("/api/songs", headers=h, json={"title": "X", "key": "E"}).status_code == 403
+
+
+def test_members_get_a_practice_only_view(app, web, wav):
+    setup_church(web)
+    leader = sign_in(app, "pastor", "leader-pass-1")
+    song_id = make_song(leader, "Santo", wav)
+    leader.post(f"/songs/{song_id}/sections", data={"name": "Coro", "start": "0:00.1", "csrf": leader.csrf})
+    leader.post(
+        "/c/iglesia-central/members",
+        data={"username": "musico", "password": "member-pass-1", "role": "member", "csrf": leader.csrf},
+    )
+    member = sign_in(app, "musico", "member-pass-1")
+    lib = member.get("/c/iglesia-central").text
+    assert "<h1>Practice</h1>" in lib and "practice-list" in lib and "Santo" in lib
+    assert "zip-upload" not in lib
+    page = member.get(f"/songs/{song_id}").text
+    assert 'id="player"' in page and 'data-panel="chart"' in page
+    assert 'id="tracks"' not in page and 'id="sections"' not in page and "download" not in page
+    assert 'class="chip" data-time' in page and "Coro" in page
+    # Leaders still get the full page
+    full = leader.get(f"/songs/{song_id}").text
+    assert 'id="tracks"' in full and "practice-list" not in leader.get("/c/iglesia-central").text

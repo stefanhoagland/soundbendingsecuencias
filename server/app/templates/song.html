@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <a class="muted small" href="{{ back_url }}">← Library</a>
+    <a class="muted small" href="{{ back_url }}">← {{ 'Practice' if practice else 'Library' }}</a>
     <h1>{{ song.title }}</h1>
     <div class="meta">
       {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
@@ -20,7 +20,7 @@
       <span class="pill">{{ '%g'|format(song.bpm) if song.bpm else '–' }} BPM</span>
       <span class="pill">{{ song.time_signature }}</span>
       <span class="pill">{{ song.duration_seconds|duration }}</span>
-      <span class="muted">{{ song.tracks|length }} tracks · {{ song.total_bytes|filesize }}</span>
+      {% if not practice %}<span class="muted">{{ song.tracks|length }} tracks · {{ song.total_bytes|filesize }}</span>{% endif %}
     </div>
   </div>
   {% if editable %}
@@ -34,7 +34,8 @@
   </div>
   {% endif %}
 </div>
-{% if not editable %}<p class="muted small catalog-note">You can play and download this song. Ask a church leader to make changes.</p>{% endif %}
+{% if practice %}{% if song.sections %}<div class="practice-sections">{% for sec in song.sections %}<button type="button" class="chip" data-time="{{ sec.start_seconds }}">{{ sec.name }}</button>{% endfor %}</div>{% endif %}
+{% elif not editable %}<p class="muted small catalog-note">You can play and download this song. Ask a church leader to make changes.</p>{% endif %}
 {% if song.notes %}<p class="notes">{{ song.notes }}</p>{% endif %}
 
 <nav class="tabs" role="tablist">
@@ -86,6 +87,7 @@
 </section>
 {% endif %}
 
+{% if not practice %}
 <div class="grid-2">
 <section class="card" id="tracks">
   <h2>Tracks</h2>
@@ -209,6 +211,7 @@
   {% endif %}
 </section>
 </div>
+{% endif %}
 </div>
 
 <div data-panel="chart" {{ 'hidden' if tab != 'chart' }}>

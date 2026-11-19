@@ -52,6 +52,11 @@ class User(Base):
     def is_leader(self) -> bool:
         return self.church_id is not None and self.church_role == "leader"
 
+    @property
+    def practice_only(self) -> bool:
+        """Church members just pick a song and practise; they don't manage anything."""
+        return self.church_id is not None and self.church_role != "leader" and not self.is_admin
+
 
 class ApiToken(Base):
     """Long-lived token for the playback app (sent as a Bearer header)."""
