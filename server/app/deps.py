@@ -99,13 +99,11 @@ def can_view(user: User, song: Song) -> bool:
         return True
     if song.church_id is not None:
         return song.church_id == user.church_id
-    if song.owner_id == user.id:
-        return True
-    return user.church_id is not None and any(c.id == user.church_id for c in song.shared_with)
+    return song.owner_id == user.id
 
 
 def can_edit(user: User, song: Song) -> bool:
-    """Admins edit everything; church leaders edit their church's own songs (not shared catalog songs)."""
+    """Admins edit everything; church leaders edit their church's songs; members only play."""
     if user.is_admin:
         return True
     if song.church_id is not None:

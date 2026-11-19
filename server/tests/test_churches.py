@@ -63,48 +63,30 @@ def test_church_user_lands_on_church_page(app, web):
     assert leader.get("/admin/churches").status_code == 403
 
 
-def test_catalog_sharing_and_church_songs(app, web, wav):
+def test_churches_only_see_their_own_songs(app, web, wav):
     setup_church(web)
     setup_church(web, "Otra Iglesia", "otro")
-    catalog_id = make_song(web, "Gracia Sublime", wav)
     private_id = make_song(web, "Private Demo", wav)
 
     leader = sign_in(app, "pastor", "leader-pass-1")
-    assert "Gracia Sublime" not in leader.get("/c/iglesia-central").text
-    assert leader.get(f"/songs/{catalog_id}").status_code == 404
-
-    church_ids = re.findall(r'name="church" value="(\d+)"', web.get(f"/songs/{catalog_id}").text)
-    web.post(f"/songs/{catalog_id}/share", data={"church": church_ids[0], "csrf": web.csrf})
-
-    lib = leader.get("/c/iglesia-central").text
-    assert "Gracia Sublime" in lib and "catalog" in lib and "Private Demo" not in lib
-    page = leader.get(f"/songs/{catalog_id}")
-    assert page.status_code == 200 and "Edit details" not in page.text and "Shared with your church" in page.text
-    track_id = re.search(r"/tracks/(\d+)/audio", page.text).group(1)
-    assert leader.get(f"/tracks/{track_id}/audio").status_code == 200
-    # Shared songs are read-only for the church
-    r = leader.post(f"/songs/{catalog_id}/transpose", data={"semitones": "2", "csrf": leader.csrf})
-    assert r.status_code == 403
-    assert leader.post(f"/songs/{catalog_id}/delete", data={"csrf": leader.csrf}).status_code == 403
+    assert "Private Demo" not in leader.get("/c/iglesia-central").text
     assert leader.get(f"/songs/{private_id}").status_code == 404
+    assert leader.post(f"/songs/{private_id}/delete", data={"csrf": leader.csrf}).status_code == 404
 
-    # The other church doesn't see it
-    other = sign_in(app, "otro", "leader-pass-1")
-    assert "Gracia Sublime" not in other.get("/c/otra-iglesia").text
-    assert other.get(f"/songs/{catalog_id}").status_code == 404
-
-    # A leader's own upload belongs to the church, not the admin's catalog
+    # A leader's upload belongs to the church, not to the admin's library
     own_id = make_song(leader, "Nuestra Canción", wav)
     assert "Nuestra Canción" in leader.get("/c/iglesia-central").text
     assert "Edit details" in leader.get(f"/songs/{own_id}").text
     assert "Nuestra Canción" not in web.get("/").text
-    assert other.get(f"/songs/{own_id}").status_code == 404
     with app.state.session_factory() as db:
         assert db.get(Song, own_id).church_id is not None
 
-    # Unsharing hides it again
-    web.post(f"/songs/{catalog_id}/share", data={"csrf": web.csrf})
-    assert "Gracia Sublime" not in leader.get("/c/iglesia-central").text
+    # The other church can't see it
+    other = sign_in(app, "otro", "leader-pass-1")
+    assert "Nuestra Canción" not in other.get("/c/otra-iglesia").text
+    assert other.get(f"/songs/{own_id}").status_code == 404
+    track_id = re.search(r"/tracks/(\d+)/audio", leader.get(f"/songs/{own_id}").text).group(1)
+    assert other.get(f"/tracks/{track_id}/audio").status_code == 404
 
 
 def test_members_can_play_but_not_change(app, web, wav):
@@ -151,12 +133,11 @@ def test_delete_church_removes_its_people_and_songs(app, web, wav):
     setup_church(web)
     leader = sign_in(app, "pastor", "leader-pass-1")
     song_id = make_song(leader, "Santo", wav)
-    catalog_id = make_song(web, "Catalog", wav)
+    mine = make_song(web, "Mine", wav)
     church_id = re.search(r"/admin/churches/(\d+)/delete", web.get("/admin/churches").text).group(1)
-    web.post(f"/songs/{catalog_id}/share", data={"church": church_id, "csrf": web.csrf})
     web.post(f"/admin/churches/{church_id}/delete", data={"csrf": web.csrf})
     assert web.get(f"/songs/{song_id}").status_code == 404
-    assert web.get(f"/songs/{catalog_id}").status_code == 200
+    assert web.get(f"/songs/{mine}").status_code == 200
     c = TestClient(app)
     r = c.post("/login", data={"username": "pastor", "password": "leader-pass-1", "csrf": csrf_of(c)})
     assert r.status_code == 401
@@ -164,17 +145,20 @@ def test_delete_church_removes_its_people_and_songs(app, web, wav):
 
 def test_api_scopes_to_church(app, web, wav):
     setup_church(web)
-    catalog_id = make_song(web, "Gracia Sublime", wav)
     make_song(web, "Private Demo", wav)
-    church_id = re.search(r'name="church" value="(\d+)"', web.get(f"/songs/{catalog_id}").text).group(1)
-    web.post(f"/songs/{catalog_id}/share", data={"church": church_id, "csrf": web.csrf})
+    leader = sign_in(app, "pastor", "leader-pass-1")
+    song_id = make_song(leader, "Santo", wav)
+    leader.post(
+        "/c/iglesia-central/members",
+        data={"username": "musico", "password": "member-pass-1", "role": "member", "csrf": leader.csrf},
+    )
     c = TestClient(app)
-    token = c.post("/api/auth/token", json={"username": "pastor", "password": "leader-pass-1", "device_name": "Mac"}).json()["token"]
+    token = c.post("/api/auth/token", json={"username": "musico", "password": "member-pass-1", "device_name": "Mac"}).json()["token"]
     h = {"Authorization": f"Bearer {token}"}
     me = c.get("/api/me", headers=h).json()
-    assert me["church"]["slug"] == "iglesia-central" and me["church_role"] == "leader"
-    titles = [s["title"] for s in c.get("/api/songs", headers=h).json()["songs"]]
-    assert titles == ["Gracia Sublime"]
-    manifest = c.get(f"/api/songs/{catalog_id}", headers=h).json()
+    assert me["church"]["slug"] == "iglesia-central" and me["church_role"] == "member"
+    assert [s["title"] for s in c.get("/api/songs", headers=h).json()["songs"]] == ["Santo"]
+    manifest = c.get(f"/api/songs/{song_id}", headers=h).json()
     assert c.get(manifest["tracks"][0]["audio_url"], headers=h).status_code == 200
-    assert c.put(f"/api/songs/{catalog_id}", headers=h, json={"title": "X", "key": "E"}).status_code == 403
+    assert c.put(f"/api/songs/{song_id}", headers=h, json={"title": "X", "key": "E"}).status_code == 403
+    assert c.post("/api/songs", headers=h, json={"title": "X", "key": "E"}).status_code == 403

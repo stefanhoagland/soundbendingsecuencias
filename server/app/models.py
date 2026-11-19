@@ -18,7 +18,7 @@ CHURCH_ROLES = ("leader", "member")
 
 
 class Church(Base):
-    """A church's own space: its members, its own songs, and songs shared with it from the catalog."""
+    """A church's own space: its members and its own songs."""
 
     __tablename__ = "churches"
 
@@ -29,16 +29,6 @@ class Church(Base):
 
     members: Mapped[list[User]] = relationship(back_populates="church", order_by="User.username")
     songs: Mapped[list[Song]] = relationship(back_populates="church", foreign_keys="Song.church_id")
-    shared_songs: Mapped[list[Song]] = relationship(secondary="song_shares", back_populates="shared_with")
-
-
-class SongShare(Base):
-    """A catalog song (one without a church) made visible to a church."""
-
-    __tablename__ = "song_shares"
-
-    song_id: Mapped[int] = mapped_column(ForeignKey("songs.id", ondelete="CASCADE"), primary_key=True)
-    church_id: Mapped[int] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), primary_key=True)
 
 
 class User(Base):
@@ -83,7 +73,7 @@ class Song(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    # Set for a church's own songs; empty for the catalog (personal) songs.
+    # Set for a church's songs; empty for personal songs.
     church_id: Mapped[int | None] = mapped_column(ForeignKey("churches.id", ondelete="CASCADE"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     artist: Mapped[str] = mapped_column(String(255), default="")
@@ -103,7 +93,6 @@ class Song(Base):
 
     owner: Mapped[User] = relationship(back_populates="songs")
     church: Mapped[Church | None] = relationship(back_populates="songs", foreign_keys=[church_id])
-    shared_with: Mapped[list[Church]] = relationship(secondary="song_shares", back_populates="shared_songs")
     tracks: Mapped[list[Track]] = relationship(
         back_populates="song", cascade="all, delete-orphan", order_by="Track.position"
     )

@@ -210,11 +210,7 @@ async def create_song_from_zip(
 @router.get("/songs/{song_id}")
 def song_page(song_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
     song = owned_song(song_id, user, db, edit=False)
-    # Back to the library you came from: the song's church, or the church viewing a shared catalog song.
-    church = song.church or current_church(request, user, db)
-    if church is not None and song.church_id is None and church not in song.shared_with:
-        church = None
-    share_churches = list(db.scalars(select(Church).order_by(Church.name))) if user.is_admin and song.church_id is None else []
+    church = song.church
     return render(
         request,
         "song.html",
@@ -222,9 +218,6 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         song=song,
         editable=can_edit(user, song),
         back_url=library_url(church),
-        from_catalog=song.church_id is None and user.church_id is not None,
-        share_churches=share_churches,
-        shared_ids={c.id for c in song.shared_with},
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
         has_guide=section_jobs.has_guide(song),
@@ -575,20 +568,6 @@ def delete_user(user_id: int, request: Request, user: User = Depends(web_admin),
 
 
 # ---- churches ---------------------------------------------------------------
-
-
-@router.post("/songs/{song_id}/share", dependencies=[Depends(check_csrf)])
-async def share_song(song_id: int, request: Request, user: User = Depends(web_admin), db: Session = Depends(get_db)):
-    song = owned_song(song_id, user, db)
-    form = await request.form()
-    try:
-        services.set_song_shares(db, song, form.getlist("church"))
-    except services.ValidationError as exc:
-        return redirect(f"/songs/{song.id}#share", ("error", str(exc)), request)
-    names = ", ".join(c.name for c in song.shared_with)
-    return redirect(
-        f"/songs/{song.id}#share", ("ok", f"Shared with {names}." if names else "Not shared with any church."), request
-    )
 
 
 @router.get("/admin/churches")

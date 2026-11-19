@@ -3,11 +3,11 @@
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
 <h1>Churches</h1>
-<p class="muted">Each church gets its own page. Its people sign in here and land straight on it. They see the songs you share with them plus the songs their leaders upload.</p>
+<p class="muted">Each church gets its own page. Its people sign in here and land straight on it. They see only their own church's songs, which their leaders (or you) upload.</p>
 {% if churches %}
 <section class="card">
   <table class="plain">
-    <thead><tr><th>Church</th><th>Page</th><th>People</th><th>Own songs</th><th>Shared</th><th></th></tr></thead>
+    <thead><tr><th>Church</th><th>Page</th><th>People</th><th>Songs</th><th></th></tr></thead>
     <tbody>
     {% for c in churches %}
       <tr>
@@ -15,12 +15,11 @@
         <td><a href="/c/{{ c.slug }}">/c/{{ c.slug }}</a></td>
         <td>{{ c.members|length }}</td>
         <td>{{ c.songs|length }}</td>
-        <td>{{ c.shared_songs|length }}</td>
         <td class="row end nowrap">
           <a class="button small" href="/c/{{ c.slug }}">Open</a>
           <a class="button small" href="/c/{{ c.slug }}/members">Members</a>
           <form method="post" action="/admin/churches/{{ c.id }}/delete" class="inline"
-                data-confirm="Delete {{ c.name }}, its people's logins and the songs they uploaded? Songs you shared with them stay in your catalog.">
+                data-confirm="Delete {{ c.name }}, its people's logins and the songs they uploaded?">
             <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete</button>
           </form>
         </td>

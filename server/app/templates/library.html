@@ -3,8 +3,7 @@
 <div class="page-head">
   <div>
     <h1>{{ church.name if church else 'Library' }}</h1>
-    {% if church and user.is_admin %}<p class="muted small">You're working in {{ church.name }}'s library. New songs you add here belong to them. <a href="/">Back to my catalog</a></p>
-    {% elif not church and user.is_admin %}<p class="muted small">Your catalog. Share a song with churches from its page.</p>{% endif %}
+    {% if church and user.is_admin %}<p class="muted small">You're working in {{ church.name }}'s library. New songs you add here belong to them. <a href="/">Back to my library</a></p>{% endif %}
   </div>
   <div class="actions">
     <form method="get" action="{{ '/c/' ~ church.slug if church else '/' }}" class="search">
@@ -33,7 +32,7 @@
   <tbody>
   {% for s in songs %}
     <tr onclick="location.href='/songs/{{ s.id }}'">
-      <td><a href="/songs/{{ s.id }}">{{ s.title }}</a>{% if church and s.church_id is none %} <span class="catalog-badge" title="Shared from the Soundbending catalog">catalog</span>{% endif %}</td>
+      <td><a href="/songs/{{ s.id }}">{{ s.title }}</a></td>
       <td>{{ s.artist }}</td>
       <td><span class="pill">{{ s.key or '–' }}</span></td>
       <td>{{ '%g'|format(s.bpm) if s.bpm else '–' }}</td>

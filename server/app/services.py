@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .audio import InvalidWav, guess_role, track_name_from_filename
 from .music import transpose_key
 from .track_names import clean_name, picker_names, role_for_name  # noqa: F401  (re-exported)
-from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Song, SongShare, Track, User
+from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Song, Track, User
 from .security import hash_password
 from .storage import delete_song_dir, delete_track_file, save_fileobj, save_upload
 
@@ -110,10 +110,9 @@ def apply_song_fields(song: Song, *, title, artist, bpm, key, time_signature, no
 
 
 def list_songs(db: Session, user: User, q: str = "", church: Church | None = None) -> list[Song]:
-    """A church's library (its own songs plus catalog songs shared with it), or the user's own catalog."""
+    """A church's library, or the user's own personal library."""
     if church is not None:
-        shared = select(SongShare.song_id).where(SongShare.church_id == church.id)
-        stmt = select(Song).where((Song.church_id == church.id) | Song.id.in_(shared))
+        stmt = select(Song).where(Song.church_id == church.id)
     else:
         stmt = select(Song).where(Song.owner_id == user.id, Song.church_id.is_(None))
     if q:
@@ -443,10 +442,3 @@ def delete_church(db: Session, library_dir, church: Church) -> None:
     db.delete(church)
     db.commit()
 
-
-def set_song_shares(db: Session, song: Song, church_ids) -> None:
-    if song.church_id is not None:
-        raise ValidationError("Only catalog songs can be shared")
-    wanted = {int(i) for i in church_ids}
-    song.shared_with = list(db.scalars(select(Church).where(Church.id.in_(wanted)))) if wanted else []
-    db.commit()
