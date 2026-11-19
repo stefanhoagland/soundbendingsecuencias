@@ -104,6 +104,7 @@
       <span class="muted small" id="tracks-status">Locked. Click Edit tracks to make changes.</span>
       <div class="actions">
         <button type="button" id="tracks-edit" class="small">Edit tracks</button>
+        <button type="button" id="tracks-suggest" class="small" hidden title="Turn long filenames into standard names like Bajo, Acústica 2, Click">✨ Suggest names</button>
         <button type="button" id="tracks-cancel" class="small" hidden>Cancel</button>
         <button type="submit" id="tracks-save" class="small primary" hidden>Save changes</button>
       </div>
@@ -111,10 +112,10 @@
     <fieldset id="tracks-fields" disabled>
     <ul class="tracks">
     {% for t in song.tracks %}
-      <li id="track-{{ t.id }}" class="track role-{{ t.role }}" data-id="{{ t.id }}">
+      <li id="track-{{ t.id }}" class="track role-{{ t.role }}" data-id="{{ t.id }}" data-suggest="{{ suggest_name(t) }}">
         <input type="hidden" name="order" value="{{ t.id }}">
         <div class="track-form">
-          <input name="name-{{ t.id }}" value="{{ t.name }}" aria-label="Track name" class="name" required>
+          <input name="name-{{ t.id }}" value="{{ t.name }}" aria-label="Track name" class="name" required list="track-names" autocomplete="off" placeholder="Pick or type a name">
           <select name="role-{{ t.id }}" aria-label="Role">
             {% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == t.role }}>{{ r|capitalize }}</option>{% endfor %}
           </select>
@@ -138,6 +139,7 @@
     {% endfor %}
     </ul>
     </fieldset>
+    <datalist id="track-names">{% for n in name_options %}<option value="{{ n }}">{% endfor %}</datalist>
   </form>
   {% endif %}
 </section>

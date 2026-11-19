@@ -164,6 +164,8 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
         has_guide=section_jobs.has_guide(song),
+        name_options=services.track_name_options(db, user),
+        suggest_name=lambda t: services.clean_name(t.original_filename, song.title),
         tab="chart" if request.query_params.get("tab") == "chart" else "mix",
         transpose_options=[
             (n, services.transpose_key(song.key, n)) for n in range(-services.MAX_TRANSPOSE, services.MAX_TRANSPOSE + 1)

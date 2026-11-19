@@ -11,7 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .audio import InvalidWav, guess_role, track_name_from_filename
-from .music import transpose_key  # noqa: F401  (re-exported)
+from .music import transpose_key
+from .track_names import clean_name, picker_names, role_for_name  # noqa: F401  (re-exported)
 from .models import TRACK_ROLES, Section, Song, Track, User
 from .security import hash_password
 from .storage import delete_song_dir, delete_track_file, save_fileobj, save_upload
@@ -133,10 +134,14 @@ def wav_entries(zf: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
 
 def _new_track(song: Song, filename: str, position: int, saved) -> Track:
     stored, size, sha, info = saved
+    name = clean_name(filename, song.title) or track_name_from_filename(filename)
+    role = guess_role(filename)
+    if role == "stem":
+        role = role_for_name(name) or "stem"
     return Track(
         song=song,
-        name=track_name_from_filename(filename)[:255],
-        role=guess_role(filename),
+        name=name[:255],
+        role=role,
         position=position,
         stored_filename=stored,
         original_filename=filename[:255],
@@ -241,6 +246,16 @@ def song_fields_from_filename(filename: str) -> dict:
             title = " ".join(words)
     fields["title"] = re.sub(r"\s{2,}", " ", title) or "Untitled"
     return fields
+
+
+def track_name_options(db: Session, user: User) -> list[str]:
+    """Standard names plus any custom names this person has used before."""
+    used = db.scalars(
+        select(Track.name).join(Song).where(Song.owner_id == user.id).distinct()
+    ).all()
+    standard = picker_names()
+    known = {n.lower() for n in standard}
+    return standard + sorted({n for n in used if n.lower() not in known}, key=str.lower)
 
 
 def update_track(track: Track, *, name=None, role=None, gain_db=None, pan=None, muted=None) -> None:

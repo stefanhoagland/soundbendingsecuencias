@@ -99,8 +99,8 @@ def read_wav_info(fh: BinaryIO) -> WavInfo:
 
 
 _ROLE_PATTERNS = [
-    ("click", re.compile(r"\b(click|metronome|clk)\b", re.I)),
-    ("guide", re.compile(r"\b(guide|cues?|count|vocal ?cues?)\b", re.I)),
+    ("click", re.compile(r"\b(click|clic|metronome|metr[oó]nomo|clk)\b", re.I)),
+    ("guide", re.compile(r"\b(guides?|gu[ií]a|cues?|count|count ?in|conteo|vocal ?cues?)\b", re.I)),
 ]
 
 
