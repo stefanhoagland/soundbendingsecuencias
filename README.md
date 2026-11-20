@@ -63,7 +63,7 @@ docker compose up -d --build
 | `SBS_SECRET_KEY` | *(generated, saved in the data folder)* | Signs login cookies |
 | `SBS_SESSION_DAYS` | `30` | How long you stay signed in |
 | `SBS_AUTO_SECTIONS` | `1` | Listen to guide tracks after upload and add section markers. `0` turns it off (the Detect button still works) |
-| `SBS_WHISPER_MODEL` | `base.en` | Speech model. `tiny.en` is faster, `small.en` is more accurate but slower |
+| `SBS_WHISPER_MODEL` | `small` | Speech model for guide cues. `small` understands English and Spanish; `base` is faster, `medium` more accurate. `.en` models are English-only (the old default `base.en` is upgraded to `small`) |
 | `SBS_PUBLIC_URL` | *(blank)* | The site's public address, e.g. `https://secuencias.hoaglu.com`; used in email links |
 | `SBS_SMTP_HOST` | *(blank = email off)* | SMTP server for welcome / password emails, e.g. `smtp.resend.com` |
 | `SBS_SMTP_PORT` | `587` | `587` (STARTTLS) or `465` (SSL) |

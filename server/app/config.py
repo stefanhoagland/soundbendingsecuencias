@@ -20,7 +20,7 @@ class Settings:
     admin_password: str | None
     session_max_age: int
     auto_sections: bool = True
-    whisper_model: str = "base.en"
+    whisper_model: str = "small"
     # Address people use to reach the site, e.g. https://secuencias.hoaglu.com (used in email links).
     public_url: str = ""
     # Outgoing email (welcome and password emails). Any SMTP service works, e.g. Resend or Gmail.
@@ -67,6 +67,13 @@ def _load_or_create_secret(data_dir: Path) -> str:
     return key
 
 
+def _whisper_model(value: str) -> str:
+    """The old default was the English-only "base.en", which can't hear Spanish guides.
+    Installs that still carry it (or nothing) get the multilingual "small" model."""
+    value = value.strip()
+    return "small" if value in ("", "base.en") else value
+
+
 def load_settings(data_dir: str | Path | None = None) -> Settings:
     root = Path(data_dir or os.environ.get("SBS_DATA_DIR", "./data")).resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -79,7 +86,7 @@ def load_settings(data_dir: str | Path | None = None) -> Settings:
         admin_password=os.environ.get("SBS_ADMIN_PASSWORD") or None,
         session_max_age=int(os.environ.get("SBS_SESSION_DAYS", "30")) * 86400,
         auto_sections=os.environ.get("SBS_AUTO_SECTIONS", "1").lower() not in ("0", "false", "no", "off"),
-        whisper_model=os.environ.get("SBS_WHISPER_MODEL", "base.en"),
+        whisper_model=_whisper_model(os.environ.get("SBS_WHISPER_MODEL", "")),
         public_url=os.environ.get("SBS_PUBLIC_URL", "").strip().rstrip("/"),
         smtp_host=os.environ.get("SBS_SMTP_HOST", "").strip(),
         smtp_port=int(os.environ.get("SBS_SMTP_PORT", "") or 587),
