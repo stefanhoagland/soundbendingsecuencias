@@ -1,16 +1,23 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Users') }}{% endblock %}
-{% block main_class %}page narrow{% endblock %}
+{% block main_class %}page{% endblock %}
 {% block content %}
 <h1>{{ _('Users') }}</h1>
 <section class="card">
   <table class="plain">
-    <thead><tr><th>{{ _('Username') }}</th><th>{{ _('Name') }}</th><th>{{ _('Role') }}</th><th>{{ _('Church') }}</th><th>{{ _('Songs') }}</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Username') }}</th><th>{{ _('Name') }}</th><th>{{ _('Email') }}</th><th>{{ _('Role') }}</th><th>{{ _('Church') }}</th><th>{{ _('Songs') }}</th><th></th></tr></thead>
     <tbody>
     {% for u in users %}
       <tr>
         <td>{{ u.username }}</td>
         <td>{{ u.display_name }}</td>
+        <td>
+          <form method="post" action="/admin/users/{{ u.id }}/invite" class="inline row">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="email" name="email" value="{{ u.email }}" placeholder="{{ _('Email') }}" class="small-input" aria-label="{{ _('Email for {name}', name=u.username) }}">
+            <button class="small" title="{{ _('Save the address and email them a link to set their password') if mail_ready else _('Save the address') }}">{{ _('Send link') if mail_ready else _('Save') }}</button>
+          </form>
+        </td>
         <td>{{ _('Super admin') if u.is_admin else (_(u.church_role|capitalize) if u.church else _('Own library')) }}</td>
         <td>{% if u.church %}<a href="/c/{{ u.church.slug }}">{{ u.church.name }}</a>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td>{{ u.songs|length }}</td>
@@ -41,7 +48,10 @@
       <label>{{ _('Username') }} <input name="username" required pattern="[A-Za-z0-9_.\-]{2,64}"></label>
       <label>{{ _('Display name') }} <input name="display_name"></label>
     </div>
-    <label>{{ _('Password') }} <input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+    <div class="row">
+      <label>{{ _('Email') }} <input type="email" name="email" autocomplete="off"></label>
+      <label>{{ _('Password') }}{% if mail_ready %} <span class="muted small">{{ _('(optional if you add an email)') }}</span>{% endif %} <input type="password" name="password" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
+    </div>
     <label class="check"><input type="checkbox" name="is_admin"> {{ _('Super admin (manages churches and users)') }}</label>
     <div class="row end"><button class="primary">{{ _('Add user') }}</button></div>
   </form>

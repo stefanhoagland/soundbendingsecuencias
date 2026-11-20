@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import i18n, previews, section_jobs, services
+from . import i18n, mailer, previews, section_jobs, services
 from .deps import (
     can_add_songs,
     can_edit,
@@ -52,6 +52,7 @@ def render(request: Request, name: str, user: User | None, status_code: int = 20
             "nav_church": nav_church,
             "practice": bool(user and user.practice_only),
             "lang": lang,
+            "mail_ready": request.app.state.mailer.enabled,
             "_": i18n.gettext(lang),
             "tr": lambda text: i18n.translate_message(lang, text),
             "setlist_label": lambda sl: services.setlist_label(sl, lang),
@@ -98,6 +99,37 @@ def church_for_manager(slug: str, user: User, db: Session) -> Church:
 # ---- auth -----------------------------------------------------------------
 
 
+def mail_ready(request: Request) -> bool:
+    return request.app.state.mailer.enabled
+
+
+def send_password_email(request: Request, target: User, kind: str, inviter: User | None = None) -> str | None:
+    """Email `target` a set-password link ("invite" or "reset"). Returns an error message, or None when sent."""
+    if not target.email:
+        return f"{target.username} has no email address"
+    settings = get_settings(request)
+    base = settings.public_url or str(request.base_url).rstrip("/")
+    link = f"{base}/set-password?token={mailer.make_token(settings, target, kind)}"
+    lang = target.language if target.language in i18n.LANGS else i18n.pick_language(request, None)
+    who = (inviter.display_name or inviter.username) if inviter else ""
+    subject, text, html_body = mailer.compose(kind, lang, target, link, who)
+    try:
+        request.app.state.mailer.send(target.email, subject, text, html_body)
+    except mailer.MailError as exc:
+        return str(exc)
+    return None
+
+
+def welcome(request: Request, new: User, inviter: User, added: str) -> tuple[str, str]:
+    """Flash for a newly added person: sends the welcome email when we can."""
+    if not (new.email and mail_ready(request)):
+        return ("ok", added)
+    err = send_password_email(request, new, "invite", inviter)
+    if err:
+        return ("error", f"Added {new.username}, but the welcome email failed: {err}")
+    return ("ok", f"Added {new.username}. Welcome email sent to {new.email}.")
+
+
 @router.get("/login")
 def login_page(request: Request, user: User | None = Depends(optional_user)):
     if user:
@@ -126,6 +158,64 @@ def login(
         db.commit()
     # The super admin starts on the churches dashboard; everyone else on their library.
     return redirect("/admin/churches" if user.is_admin else "/")
+
+
+@router.get("/forgot-password")
+def forgot_password_page(request: Request, user: User | None = Depends(optional_user)):
+    return render(request, "forgot.html", None, sent=False)
+
+
+@router.post("/forgot-password", dependencies=[Depends(check_csrf)])
+def forgot_password(request: Request, who: str = Form(""), db: Session = Depends(get_db)):
+    who = who.strip().lower()
+    if who:
+        target = db.scalar(select(User).where((User.username == who) | (User.email == who)))
+        if target is not None and target.email and mail_ready(request):
+            send_password_email(request, target, "reset")
+    # Same answer either way, so this page can't be used to find out who has an account.
+    return render(request, "forgot.html", None, sent=True)
+
+
+@router.get("/set-password")
+def set_password_page(request: Request, token: str = "", db: Session = Depends(get_db)):
+    found = mailer.read_token(get_settings(request), db, token)
+    if found is None:
+        return render(request, "set_password.html", None, status_code=400, error="That link is invalid or has expired. Ask for a new one.")
+    target, kind = found
+    return render(request, "set_password.html", None, target=target, kind=kind, token=token)
+
+
+@router.post("/set-password", dependencies=[Depends(check_csrf)])
+def set_password(
+    request: Request,
+    token: str = Form(""),
+    password: str = Form(""),
+    confirm: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    found = mailer.read_token(get_settings(request), db, token)
+    if found is None:
+        return render(request, "set_password.html", None, status_code=400, error="That link is invalid or has expired. Ask for a new one.")
+    target, kind = found
+    error = None
+    if password != confirm:
+        error = "The two passwords don't match"
+    else:
+        try:
+            services.set_password(db, target, password)
+        except services.ValidationError as exc:
+            error = str(exc)
+    if error:
+        return render(request, "set_password.html", None, status_code=400, error=error, target=target, kind=kind, token=token)
+    # Signed straight in, like after a normal sign-in.
+    lang = request.session.get("lang")
+    request.session.clear()
+    request.session["uid"] = target.id
+    if target.language in i18n.LANGS:
+        request.session["lang"] = target.language
+    elif lang in i18n.LANGS:
+        request.session["lang"] = lang
+    return redirect("/admin/churches" if target.is_admin else "/", ("ok", "Password set. You're signed in."), request)
 
 
 @router.get("/lang/{code}")
@@ -562,6 +652,15 @@ def account_page(request: Request, user: User = Depends(web_user)):
     return render(request, "account.html", user, tokens=user.tokens, new_token=new_token)
 
 
+@router.post("/account/email", dependencies=[Depends(check_csrf)])
+def change_email(request: Request, email: str = Form(""), user: User = Depends(web_user), db: Session = Depends(get_db)):
+    try:
+        services.set_email(db, user, email)
+    except services.ValidationError as exc:
+        return redirect("/account", ("error", str(exc)), request)
+    return redirect("/account", ("ok", "Email saved."), request)
+
+
 @router.post("/account/password", dependencies=[Depends(check_csrf)])
 def change_password(
     request: Request,
@@ -611,16 +710,29 @@ def create_user(
     request: Request,
     username: str = Form(""),
     display_name: str = Form(""),
+    email: str = Form(""),
     password: str = Form(""),
     is_admin: str | None = Form(None),
     user: User = Depends(web_admin),
     db: Session = Depends(get_db),
 ):
     try:
-        new = services.create_user(db, username, password, display_name=display_name, is_admin=is_admin is not None)
+        new = services.create_user(
+            db, username, password, display_name=display_name, email=email, invite=mail_ready(request), is_admin=is_admin is not None
+        )
     except services.ValidationError as exc:
         return redirect("/admin/users", ("error", str(exc)), request)
-    return redirect("/admin/users", ("ok", f"Added {new.username}."), request)
+    return redirect("/admin/users", welcome(request, new, user, f"Added {new.username}."), request)
+
+
+@router.post("/admin/users/{user_id}/invite", dependencies=[Depends(check_csrf)])
+def admin_send_link(
+    user_id: int, request: Request, email: str = Form(""), user: User = Depends(web_admin), db: Session = Depends(get_db)
+):
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(404, "User not found")
+    return redirect("/admin/users", email_link(request, db, target, email, user), request)
 
 
 @router.post("/admin/users/{user_id}/password", dependencies=[Depends(check_csrf)])
@@ -673,22 +785,31 @@ def create_church(
     slug: str = Form(""),
     leader_username: str = Form(""),
     leader_name: str = Form(""),
+    leader_email: str = Form(""),
     leader_password: str = Form(""),
     user: User = Depends(web_admin),
     db: Session = Depends(get_db),
 ):
+    invite = mail_ready(request)
+    leader = None
     try:
         if leader_username.strip():
             # Check the leader's details before creating anything.
-            services.validate_new_user(db, leader_username, leader_password)
+            services.validate_new_user(db, leader_username, leader_password, leader_email, invite)
         church = services.create_church(db, name, slug)
         if leader_username.strip():
-            services.create_user(
-                db, leader_username, leader_password, display_name=leader_name, church=church, church_role="leader"
+            leader = services.create_user(
+                db, leader_username, leader_password, display_name=leader_name, email=leader_email, invite=invite,
+                church=church, church_role="leader",
             )
     except services.ValidationError as exc:
         return redirect("/admin/churches", ("error", str(exc)), request)
-    return redirect("/admin/churches", ("ok", f"Added {church.name}. Its page is /c/{church.slug}."), request)
+    added = f"Added {church.name}. Its page is /c/{church.slug}."
+    if leader is not None and leader.email and invite:
+        kind, text = welcome(request, leader, user, "")
+        added = f"{added} {text}" if kind == "ok" else text
+        return redirect("/admin/churches", (kind, added), request)
+    return redirect("/admin/churches", ("ok", added), request)
 
 
 @router.post("/admin/churches/{church_id}/delete", dependencies=[Depends(check_csrf)])
@@ -715,6 +836,7 @@ def add_member(
     request: Request,
     username: str = Form(""),
     display_name: str = Form(""),
+    email: str = Form(""),
     password: str = Form(""),
     role: str = Form("member"),
     user: User = Depends(web_user),
@@ -723,10 +845,37 @@ def add_member(
     church = church_for_manager(slug, user, db)
     url = f"/c/{church.slug}/members"
     try:
-        new = services.create_user(db, username, password, display_name=display_name, church=church, church_role=role)
+        new = services.create_user(
+            db, username, password, display_name=display_name, email=email, invite=mail_ready(request),
+            church=church, church_role=role,
+        )
     except services.ValidationError as exc:
         return redirect(url, ("error", str(exc)), request)
-    return redirect(url, ("ok", f"Added {new.username}. They sign in at this site and land on {church.name}."), request)
+    return redirect(url, welcome(request, new, user, f"Added {new.username}. They sign in at this site and land on {church.name}."), request)
+
+
+def email_link(request: Request, db: Session, target: User, email: str, sender: User) -> tuple[str, str]:
+    """Save the address (if changed) and email a set-password link to it."""
+    try:
+        if email.strip() and email.strip().lower() != target.email:
+            services.set_email(db, target, email)
+    except services.ValidationError as exc:
+        return ("error", str(exc))
+    if not mail_ready(request):
+        return ("ok", "Email saved.") if target.email else ("error", f"{target.username} has no email address")
+    err = send_password_email(request, target, "invite", sender)
+    if err:
+        return ("error", err)
+    return ("ok", f"Password link sent to {target.email}.")
+
+
+@router.post("/c/{slug}/members/{user_id}/invite", dependencies=[Depends(check_csrf)])
+def member_send_link(
+    slug: str, user_id: int, request: Request, email: str = Form(""), user: User = Depends(web_user), db: Session = Depends(get_db)
+):
+    church = church_for_manager(slug, user, db)
+    member = _member(church, user_id, db)
+    return redirect(f"/c/{church.slug}/members", email_link(request, db, member, email, user), request)
 
 
 def _member(church: Church, user_id: int, db: Session) -> User:

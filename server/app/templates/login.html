@@ -13,5 +13,6 @@
     <label>{{ _('Password') }} <input name="password" type="password" autocomplete="current-password" required></label>
     <button class="primary">{{ _('Sign in') }}</button>
   </form>
+  {% if mail_ready %}<p class="small center-text"><a href="/forgot-password">{{ _('Forgot password?') }}</a></p>{% endif %}
 </div>
 {% endblock %}
