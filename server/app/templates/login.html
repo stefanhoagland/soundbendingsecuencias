@@ -3,7 +3,7 @@
 {% block main_class %}page narrow center{% endblock %}
 {% block content %}
 <div class="card login">
-  <img class="logo-big" src="{{ url_for('static', path='logo.svg') }}" alt="">
+  <img class="logo-big" width="72" height="72" src="{{ url_for('static', path='logo.svg') }}?v={{ static_v }}" alt="">
   <h1 class="brand big">Soundbending <span>Secuencias</span></h1>
   <p class="muted">{{ _('Your multitrack library') }}</p>
   {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
