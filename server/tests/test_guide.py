@@ -44,6 +44,80 @@ def test_snap_without_bpm_uses_spoken_time():
     assert snap_to_bars([Cue("Intro", 1.234, 1.5)], None, 4, 0, 60) == [("Intro", 1.23)]
 
 
+def _click(path, bpm, start, beats, seconds, accent=True, first_beat=0, rate=44100):
+    """A click track: a short 1 kHz blip on every beat, the downbeat louder when `accent`."""
+    import wave
+
+    import numpy as np
+
+    audio = np.zeros(int(seconds * rate), dtype=np.float32)
+    blip = np.sin(2 * np.pi * 1000 * np.arange(int(0.03 * rate)) / rate) * np.linspace(1, 0, int(0.03 * rate))
+    beat, n = 60.0 / bpm, first_beat
+    t = start
+    while t + 0.05 < seconds:
+        i = int(t * rate)
+        audio[i : i + len(blip)] += blip * (0.9 if accent and n % beats == 0 else 0.5)
+        t += beat
+        n += 1
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
+        w.writeframes((audio * 32767).astype("<i2").tobytes())
+    return path
+
+
+def test_click_grid_measures_tempo_and_finds_the_accented_downbeat(tmp_path):
+    from app.guide import click_grid, tidy_bpm
+
+    # 71.9 BPM; the click starts on beat 3 (a pickup), so the downbeat is two beats in.
+    path = _click(tmp_path / "c.wav", 71.9, 0.37, 4, 240, first_beat=2)
+    bpm, phase = click_grid(path, None, 4)
+    assert abs(bpm - 71.9) < 0.02 and tidy_bpm(bpm) == 71.9
+    beat = 60 / 71.9
+    assert abs(phase - (0.37 + 2 * beat)) < 0.01
+    # The typed BPM is a little off (72): the bars still follow the click to the end.
+    bpm, phase = click_grid(path, 72, 4)
+    bar = 4 * 60 / bpm
+    last_downbeat = 0.37 + 2 * beat + 4 * beat * 70
+    assert abs((last_downbeat - phase) / bar - round((last_downbeat - phase) / bar)) * bar < 0.02
+
+
+def test_click_grid_without_accent_uses_first_click(tmp_path):
+    from app.guide import click_grid
+
+    path = _click(tmp_path / "c.wav", 120, 1.0, 4, 60, accent=False)
+    bpm, phase = click_grid(path, None, 4)
+    assert abs(bpm - 120) < 0.05 and abs(phase - 1.0) < 0.01
+
+
+def test_click_grid_gives_up_on_silence(tmp_path, wav):
+    from app.guide import click_grid
+
+    path = tmp_path / "s.wav"
+    path.write_bytes(wav(5))
+    assert click_grid(path, 90, 4) == (90, 0.0)
+
+
+def test_detection_uses_click_when_bpm_is_missing(web, wav, app, tmp_path):
+    # Click at 60 BPM, 4/4, first beat at 0.5 s -> downbeats at 0.5, 4.5, 8.5 ...
+    click = _click(tmp_path / "Click.wav", 60, 0.5, 4, 20).read_bytes()
+    app.state.transcriber.words = words((" Verse", 3.0, 3.4), (" Chorus", 7.6, 8.1))
+    song_id = _song_with_guide(web, wav, bpm="")
+    web.post(
+        f"/songs/{song_id}/tracks",
+        data={"csrf": web.csrf},
+        files=[wav_file("Click.wav", click), wav_file("Guide.wav", wav(20))],
+    )
+    page = web.get(f"/songs/{song_id}").text
+    assert re.search(r"0:04.5</button>\s*<span>Verse", page)
+    assert re.search(r"0:08.5</button>\s*<span>Chorus", page)
+    from app.models import Song
+
+    with app.state.session_factory() as db:
+        song = db.get(Song, song_id)
+        assert song.bpm == 60
+        assert [round(s.start_seconds, 2) for s in sorted(song.sections, key=lambda s: s.start_seconds)] == [4.5, 8.5]
+
+
 def _song_with_guide(web, wav, bpm="120"):
     r = web.post("/songs", data={"title": "Gratitude", "bpm": bpm, "key": "B", "csrf": web.csrf}, follow_redirects=False)
     song_id = int(re.search(r"/songs/(\d+)", r.headers["location"]).group(1))

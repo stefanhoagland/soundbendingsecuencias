@@ -169,28 +169,89 @@ def snap_to_bars(cues: list[Cue], bpm: float | None, beats_per_bar: int, phase: 
     return sorted(((label, t) for t, label in dedup.items()), key=lambda x: x[1])
 
 
-def click_phase(path: Path, bpm: float | None, beats_per_bar: int) -> float:
-    """Time of the click's first beat, folded into one bar. 0 if it can't be found."""
-    if not bpm:
-        return 0.0
+def click_onsets(samples, rate: int):
+    """(times, loudness) of each click hit."""
+    import numpy as np
+
+    hop = max(1, rate // 1000)  # 1 ms frames
+    n = len(samples) // hop
+    if n < 10:
+        return np.zeros(0), np.zeros(0)
+    env = np.abs(samples[: n * hop]).reshape(n, hop).max(axis=1)
+    peak = float(env.max())
+    if peak < 1e-3:
+        return np.zeros(0), np.zeros(0)
+    above = env > peak * 0.12
+    rises = np.flatnonzero(above[1:] & ~above[:-1]) + 1
+    if above[0]:
+        rises = np.r_[0, rises]
+    times, amps, last = [], [], -1.0
+    for i in rises:
+        t = i * hop / rate
+        if t - last < 0.12:  # the ring of the same click
+            continue
+        times.append(t)
+        amps.append(float(env[i : i + 30].max()))
+        last = t
+    return np.array(times), np.array(amps)
+
+
+def click_grid(path: Path, bpm: float | None, beats_per_bar: int) -> tuple[float | None, float]:
+    """(exact tempo, time of a downbeat) read from the click track.
+
+    The tempo is measured from the click itself, so the bar lines stay on the click
+    for the whole song even if the BPM typed in is slightly off (or missing). The
+    downbeat is the louder accent click when there is one, else the first click.
+    Falls back to (bpm, 0) when the click can't be read."""
     try:
         import numpy as np
 
         from .audio import read_mono
 
-        samples, rate = read_mono(path, seconds=30)
-        if not len(samples):
-            return 0.0
-        env = np.abs(samples)
-        peak = float(env.max())
-        if peak < 1e-3:
-            return 0.0
-        first = int(np.argmax(env > peak * 0.3))
-        bar = beats_per_bar * 60.0 / bpm
-        return (first / rate) % bar
-    except Exception:  # noqa: BLE001 - a bad click file just means no phase
-        log.exception("Couldn't read click track for bar phase")
-        return 0.0
+        samples, rate = read_mono(path)
+        times, amps = click_onsets(samples, rate)
+        if len(times) < 8:
+            return bpm, 0.0
+        if bpm:
+            beat = 60.0 / bpm
+        else:
+            gaps = np.diff(times)
+            gaps = gaps[(gaps > 0.25) & (gaps < 1.5)]
+            if not len(gaps):
+                return None, 0.0
+            beat = float(np.median(gaps))
+        t0 = times[0]
+        # Line the clicks up on the beat grid (clicks off the grid, like eighth notes
+        # or a stop and restart off the beat, are left out) and fit the exact beat length.
+        for _ in range(3):
+            idx = np.round((times - t0) / beat)
+            ok = np.abs(times - t0 - idx * beat) < 0.2 * beat
+            if ok.sum() < 8:
+                return bpm, 0.0
+            beat, t0 = (float(v) for v in np.polyfit(idx[ok], times[ok], 1))
+        idx = np.round((times - t0) / beat).astype(int)
+        ok = np.abs(times - t0 - idx * beat) < 0.2 * beat
+        down = 0
+        groups = [amps[ok & (idx % beats_per_bar == g)] for g in range(beats_per_bar)]
+        means = [float(g.mean()) if len(g) else 0.0 for g in groups]
+        if beats_per_bar > 1 and max(means) > 0:
+            best = int(np.argmax(means))
+            rest = [m for i, m in enumerate(means) if i != best and m > 0]
+            if rest and means[best] > 1.15 * max(rest):
+                down = best
+            else:
+                down = int(idx[ok][0]) % beats_per_bar
+        bar = beat * beats_per_bar
+        return 60.0 / beat, (t0 + down * beat) % bar
+    except Exception:  # noqa: BLE001 - a bad click file just means no grid
+        log.exception("Couldn't read the click track")
+        return bpm, 0.0
+
+
+def tidy_bpm(bpm: float) -> float:
+    """72.03 -> 72, 128.46 -> 128.5: what someone would type."""
+    whole = round(bpm)
+    return float(whole) if abs(bpm - whole) < 0.05 else round(bpm, 1)
 
 
 def load_for_whisper(path: Path):

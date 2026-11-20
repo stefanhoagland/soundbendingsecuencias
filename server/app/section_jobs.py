@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import sessionmaker
 
-from .guide import click_phase, find_cues, snap_to_bars
+from .guide import click_grid, find_cues, snap_to_bars, tidy_bpm
 from .models import Section, Song
 from .storage import track_path
 
@@ -72,8 +72,12 @@ def run(state, song_id: int, delay: float = 0.0) -> None:
             cues = find_cues(words)
             beats = int((song.time_signature or "4/4").split("/")[0] or 4)
             click = next((t for t in song.tracks if t.role == "click"), None)
-            phase = click_phase(track_path(lib, song.id, click.stored_filename), song.bpm, beats) if click else 0.0
-            found = snap_to_bars(cues, song.bpm, beats, phase, song.duration_seconds)
+            bpm, phase = song.bpm, 0.0
+            if click:
+                bpm, phase = click_grid(track_path(lib, song.id, click.stored_filename), song.bpm, beats)
+                if bpm and not song.bpm:
+                    song.bpm = tidy_bpm(bpm)  # worked out from the click; shown on the song page
+            found = snap_to_bars(cues, bpm, beats, phase, song.duration_seconds)
             for sec in [s for s in song.sections if s.source == "auto"]:
                 db.delete(sec)
             db.flush()
