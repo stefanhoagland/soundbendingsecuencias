@@ -198,6 +198,7 @@ async def upload_tracks(
     song = owned_song(song_id, user, db)
     created, errors = await services.add_tracks(db, get_settings(request).library_dir, song, files)
     if created:
+        request.app.state.previews.kick()
         section_jobs.maybe_queue_after_upload(request.app.state, db, song)
     if errors and not created:
         raise HTTPException(422, "; ".join(errors))
