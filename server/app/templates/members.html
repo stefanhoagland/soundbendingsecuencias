@@ -29,7 +29,8 @@
             </select>
           </form>
         </td>
-        <td class="row end">
+        <td class="row-actions">
+          <div class="row end">
           <form method="post" action="/c/{{ church.slug }}/members/{{ m.id }}/password" class="inline row">
             <input type="hidden" name="csrf" value="{{ csrf }}">
             <input type="password" name="password" placeholder="{{ _('New password') }}" minlength="8" required class="small-input" autocomplete="new-password">
@@ -41,6 +42,7 @@
             <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Remove') }}</button>
           </form>
           {% endif %}
+          </div>
         </td>
       </tr>
     {% endfor %}
@@ -60,7 +62,7 @@
     </div>
     <div class="row">
       <label>{{ _('Email') }} <input type="email" name="email" autocomplete="off"></label>
-      <label>{{ _('Password') }}{% if mail_ready %} <span class="muted small">{{ _('(optional if you add an email)') }}</span>{% endif %} <input type="password" name="password" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
+      <label>{{ _('Password') }} <input type="password" name="password" placeholder="{{ _('Optional if you add an email') if mail_ready else '' }}" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
       <label>{{ _('Role') }}
         <select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == 'member' }}>{{ _(r|capitalize) }}</option>{% endfor %}</select>
       </label>
