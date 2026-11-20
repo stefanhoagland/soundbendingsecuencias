@@ -246,3 +246,41 @@ def test_super_admin_lands_on_churches(app, client, web):
     r = leader.post("/login", data={"username": "pastor", "password": "leader-pass-1", "csrf": csrf_of(leader)}, follow_redirects=False)
     assert r.headers["location"] == "/"
     assert "Super admin" not in leader.get("/c/iglesia-central").text
+
+
+def test_super_admin_copies_and_moves_songs(app, web, wav):
+    import os
+
+    setup_church(web)
+    setup_church(web, "Otra Iglesia", "otro")
+    leader = sign_in(app, "pastor", "leader-pass-1")
+    other = sign_in(app, "otro", "leader-pass-1")
+    song_id = make_song(leader, "Santo", wav)
+    leader.post(f"/songs/{song_id}/sections", data={"name": "Coro", "start": "0:00.1", "csrf": leader.csrf})
+    r = leader.post("/c/iglesia-central/setlists", data={"name": "Domingo", "csrf": leader.csrf}, follow_redirects=False)
+    sl = int(r.headers["location"].rsplit("/", 1)[1])
+    leader.post(f"/setlists/{sl}", data={"name": "Domingo", "service_date": "", "song": [str(song_id)], "shared": "on", "csrf": leader.csrf})
+
+    page = web.get(f"/songs/{song_id}").text
+    assert "Send to church" in page
+    assert "Send to church" not in leader.get(f"/songs/{song_id}").text
+    assert leader.post(f"/songs/{song_id}/transfer", data={"target": "", "csrf": leader.csrf}).status_code == 403
+    other_id = re.search(r'<option value="(\d+)">Otra Iglesia</option>', page).group(1)
+
+    # Copy: both churches have it, with its own audio and sections
+    r = web.post(f"/songs/{song_id}/transfer", data={"target": other_id, "mode": "copy", "csrf": web.csrf}, follow_redirects=False)
+    copy_id = int(r.headers["location"].rsplit("/", 1)[1])
+    assert copy_id != song_id
+    assert "Santo" in other.get("/c/otra-iglesia").text and "Santo" in leader.get("/c/iglesia-central").text
+    copy_page = other.get(f"/songs/{copy_id}").text
+    assert "Coro" in copy_page
+    track_id = re.search(r"/tracks/(\d+)/audio", copy_page).group(1)
+    assert other.get(f"/tracks/{track_id}/audio").status_code == 200
+    # Deleting the original leaves the copy's audio intact
+    leader.post(f"/songs/{song_id}/delete", data={"csrf": leader.csrf})
+    assert other.get(f"/tracks/{track_id}/audio").status_code == 200
+
+    # Move: the copy goes to the super admin's library and out of the church
+    web.post(f"/songs/{copy_id}/transfer", data={"target": "", "mode": "move", "csrf": web.csrf})
+    assert other.get(f"/songs/{copy_id}").status_code == 404
+    assert "Santo" in web.get("/").text

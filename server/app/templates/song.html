@@ -221,6 +221,25 @@
 </section>
 </div>
 {% endif %}
+{% if user.is_admin and not practice and (song.church_id is not none or transfer_churches) %}
+<section class="card transfer-card" id="transfer">
+  <h2>{{ _('Send to church') }}</h2>
+  <p class="muted small">{{ _('Only you see this. A copy is independent: changes to one don’t touch the other. Moving takes it out of its current church and its setlists.') }}</p>
+  <form method="post" action="/songs/{{ song.id }}/transfer" class="row transfer-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>{{ _('To') }}
+      <select name="target" required>
+        {% if song.church_id is not none %}<option value="">{{ _('My library') }}</option>{% endif %}
+        {% for c in transfer_churches if c.id != song.church_id %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="check"><input type="radio" name="mode" value="copy" checked> {{ _('Copy') }}</label>
+    <label class="check"><input type="radio" name="mode" value="move"> {{ _('Move') }}</label>
+    <button class="primary">{{ _('Send') }}</button>
+  </form>
+  <p class="muted small">{{ _('Now in: {where}', where=song.church.name if song.church else _('My library')) }}</p>
+</section>
+{% endif %}
 </div>
 
 <div data-panel="chart" {{ 'hidden' if tab != 'chart' }}>

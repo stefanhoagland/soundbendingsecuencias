@@ -17,7 +17,7 @@ from .music import transpose_key
 from .track_names import clean_name, picker_names, role_for_name  # noqa: F401  (re-exported)
 from .models import CHURCH_ROLES, TRACK_ROLES, Church, Section, Setlist, SetlistItem, Song, Track, User
 from .security import hash_password
-from .storage import delete_song_dir, delete_track_file, save_fileobj, save_upload
+from .storage import copy_track_file, delete_song_dir, delete_track_file, save_fileobj, save_upload
 
 KEYS = [
     "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B",
@@ -512,3 +512,44 @@ def church_setlists(db: Session, church: Church, *, shared_only: bool) -> tuple[
     past = sorted((s for s in lists if s.service_date and s.service_date < today),
                   key=lambda s: s.service_date, reverse=True)
     return upcoming, past
+
+
+# ---- moving songs between churches (super admin) ----------------------------------
+
+_SONG_FIELDS = ("title", "artist", "bpm", "key", "time_signature", "notes", "chart", "transpose",
+                "sections_status", "sections_note")
+_TRACK_FIELDS = ("name", "role", "position", "stored_filename", "original_filename", "size_bytes", "sha256",
+                 "sample_rate", "channels", "bit_depth", "sample_format", "duration_seconds", "gain_db", "pan", "muted")
+
+
+def copy_song(db: Session, library_dir: Path, song: Song, church: Church | None, owner: User) -> Song:
+    """A full, independent copy (audio, mix, sections, chart) in another church or the owner's library."""
+    copy = Song(owner_id=owner.id, church_id=church.id if church else None,
+                **{f: getattr(song, f) for f in _SONG_FIELDS})
+    copy.sections = [Section(name=s.name, start_seconds=s.start_seconds, color=s.color, source=s.source)
+                     for s in song.sections]
+    db.add(copy)
+    db.flush()
+    try:
+        for t in song.tracks:
+            copy_track_file(library_dir, song.id, t.stored_filename, copy.id)
+            copy.tracks.append(Track(**{f: getattr(t, f) for f in _TRACK_FIELDS}))
+        db.commit()
+    except BaseException:
+        db.rollback()
+        delete_song_dir(library_dir, copy.id)
+        raise
+    return copy
+
+
+def move_song(db: Session, song: Song, church: Church | None, owner: User) -> None:
+    """Hand a song to another church (or the super admin's library). It leaves the old church's setlists."""
+    new_id = church.id if church else None
+    if song.church_id == new_id:
+        raise ValidationError("The song is already there")
+    old_lists = select(Setlist.id).where(Setlist.church_id == song.church_id)
+    db.execute(delete(SetlistItem).where(SetlistItem.song_id == song.id, SetlistItem.setlist_id.in_(old_lists)))
+    song.church_id = new_id
+    if church is None:
+        song.owner_id = owner.id  # shows up in the super admin's own library
+    db.commit()

@@ -286,6 +286,7 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         user,
         song=song,
         in_set=in_set,
+        transfer_churches=list(db.scalars(select(Church).order_by(Church.name))) if user.is_admin else [],
         editable=can_edit(user, song),
         back_url=library_url(church),
         roles=TRACK_ROLES,
@@ -874,3 +875,33 @@ def delete_setlist(setlist_id: int, request: Request, user: User = Depends(web_u
     db.delete(setlist)
     db.commit()
     return redirect(f"/c/{slug}/setlists", ("ok", f"Deleted “{name}”."), request)
+
+
+
+# ---- transfer songs between churches (super admin) --------------------------------
+
+
+@router.post("/songs/{song_id}/transfer", dependencies=[Depends(check_csrf)])
+def transfer_song(
+    song_id: int,
+    request: Request,
+    target: str = Form(""),
+    mode: str = Form("copy"),
+    user: User = Depends(web_admin),
+    db: Session = Depends(get_db),
+):
+    song = owned_song(song_id, user, db)
+    church = None
+    if target:
+        church = db.get(Church, int(target)) if target.isdigit() else None
+        if church is None:
+            raise HTTPException(404, "Church not found")
+    where = church.name if church else "your library"
+    try:
+        if mode == "move":
+            services.move_song(db, song, church, user)
+            return redirect(f"/songs/{song.id}", ("ok", f"Moved “{song.title}” to {where}."), request)
+        copy = services.copy_song(db, get_settings(request).library_dir, song, church, user)
+    except services.ValidationError as exc:
+        return redirect(f"/songs/{song.id}#transfer", ("error", str(exc)), request)
+    return redirect(f"/songs/{copy.id}", ("ok", f"Copied “{song.title}” to {where}. You're looking at the copy."), request)

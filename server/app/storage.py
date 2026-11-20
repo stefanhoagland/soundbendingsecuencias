@@ -77,3 +77,16 @@ def delete_track_file(library_dir: Path, song_id: int, stored_filename: str) -> 
 
 def delete_song_dir(library_dir: Path, song_id: int) -> None:
     shutil.rmtree(song_dir(library_dir, song_id), ignore_errors=True)
+
+
+def copy_track_file(library_dir: Path, from_song: int, stored_filename: str, to_song: int) -> None:
+    """Give another song its own copy of a stem. Hard-links when the disk allows it
+    (no extra space; stems are never edited in place), otherwise copies."""
+    src = track_path(library_dir, from_song, stored_filename)
+    dst_dir = song_dir(library_dir, to_song)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / stored_filename
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
