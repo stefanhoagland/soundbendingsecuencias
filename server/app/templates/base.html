@@ -10,12 +10,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ _('Library') }}{% endblock %} · Soundbending Secuencias</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='logo.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', path='logo.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
   {% if user %}
   <header class="topbar">
-    <span class="brand-wrap"><a class="brand" href="{{ '/admin/churches' if user.is_admin else '/' }}">Soundbending <span>Secuencias</span></a>{% if user.is_admin %}<span class="super-badge">{{ _('Super admin') }}</span>{% endif %}</span>
+    <span class="brand-wrap"><a class="brand" href="{{ '/admin/churches' if user.is_admin else '/' }}"><img class="logo" src="{{ url_for('static', path='logo.svg') }}" alt="">Soundbending <span>Secuencias</span></a>{% if user.is_admin %}<span class="super-badge">{{ _('Super admin') }}</span>{% endif %}</span>
     <nav>
       {% if practice %}
         <a href="/c/{{ nav_church.slug }}" class="active-tab">{{ _('Practice') }}</a>
