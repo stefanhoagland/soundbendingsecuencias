@@ -1,28 +1,38 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Churches') }}{% endblock %}
-{% block main_class %}page narrow{% endblock %}
+{% block main_class %}page{% endblock %}
 {% block content %}
+<p class="eyebrow">{{ _('Super admin') }}</p>
 <h1>{{ _('Churches') }}</h1>
-<p class="muted">{{ _("Each church gets its own page. Its people sign in here and land straight on it. They see only their own church's songs, which their leaders (or you) upload.") }}</p>
+<p class="muted">{{ _("You give each church access here. Its people sign in and land straight on their church's page, and see only that church's songs.") }}</p>
+{% if churches %}
+<div class="stat-row">
+  <div class="stat"><strong>{{ churches|length }}</strong><span>{{ _('Churches') }}</span></div>
+  <div class="stat"><strong>{{ churches|map(attribute='members')|map('length')|sum }}</strong><span>{{ _('People') }}</span></div>
+  <div class="stat"><strong>{{ churches|map(attribute='songs')|map('length')|sum }}</strong><span>{{ _('Songs') }}</span></div>
+</div>
+{% endif %}
 {% if churches %}
 <section class="card">
   <table class="plain">
-    <thead><tr><th>{{ _('Church') }}</th><th>{{ _('Page') }}</th><th>{{ _('People') }}</th><th>{{ _('Songs') }}</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Church') }}</th><th>{{ _('Leaders') }}</th><th>{{ _('People') }}</th><th>{{ _('Songs') }}</th><th>{{ _('Setlists') }}</th><th></th></tr></thead>
     <tbody>
     {% for c in churches %}
       <tr>
-        <td><strong>{{ c.name }}</strong></td>
-        <td><a href="/c/{{ c.slug }}">/c/{{ c.slug }}</a></td>
+        <td class="nowrap"><strong>{{ c.name }}</strong><br><a class="muted small" href="/c/{{ c.slug }}">/c/{{ c.slug }}</a></td>
+        {% set leaders = c.members|selectattr('church_role', 'equalto', 'leader')|list %}
+        <td>{% for m in leaders %}{{ m.display_name or m.username }}{{ ', ' if not loop.last }}{% else %}<a class="warn small" href="/c/{{ c.slug }}/members">{{ _('Add a leader') }}</a>{% endfor %}</td>
         <td>{{ c.members|length }}</td>
         <td>{{ c.songs|length }}</td>
-        <td class="row end nowrap">
+        <td>{{ c.setlists|length }}</td>
+        <td><div class="row end nowrap">
           <a class="button small" href="/c/{{ c.slug }}">{{ _('Open') }}</a>
           <a class="button small" href="/c/{{ c.slug }}/members">{{ _('Members') }}</a>
           <form method="post" action="/admin/churches/{{ c.id }}/delete" class="inline"
                 data-confirm="{{ _("Delete {name}, its people's logins and the songs they uploaded?", name=c.name) }}">
             <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Delete') }}</button>
           </form>
-        </td>
+        </div></td>
       </tr>
     {% endfor %}
     </tbody>

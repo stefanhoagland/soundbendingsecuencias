@@ -57,6 +57,12 @@ ES: dict[str, str] = {
     "Your multitrack library": "Tu biblioteca de multitracks",
     "Wrong username or password": "Usuario o contraseña incorrectos",
     "Language": "Idioma",
+    "Super admin": "Súper administrador",
+    "Super admin (manages churches and users)": "Súper administrador (maneja iglesias y usuarios)",
+    "You give each church access here. Its people sign in and land straight on their church's page, and see only that church's songs.":
+        "Aquí das acceso a cada iglesia. Su gente inicia sesión y llega directo a la página de su iglesia, y solo ve las canciones de esa iglesia.",
+    "Leaders": "Líderes",
+    "Add a leader": "Agregar un líder",
     # ---- library ----------------------------------------------------------------
     "+ New song": "+ Nueva canción",
     "Search title or artist": "Buscar por título o artista",

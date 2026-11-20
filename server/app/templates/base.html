@@ -15,18 +15,17 @@
 <body>
   {% if user %}
   <header class="topbar">
-    <a class="brand" href="/">Soundbending <span>Secuencias</span></a>
+    <span class="brand-wrap"><a class="brand" href="{{ '/admin/churches' if user.is_admin else '/' }}">Soundbending <span>Secuencias</span></a>{% if user.is_admin %}<span class="super-badge">{{ _('Super admin') }}</span>{% endif %}</span>
     <nav>
       {% if practice %}
         <a href="/c/{{ nav_church.slug }}" class="active-tab">{{ _('Practice') }}</a>
       {% elif nav_church %}
         <a href="/c/{{ nav_church.slug }}">{{ nav_church.name }}</a>
         {% if nav_church.leader %}<a href="/c/{{ nav_church.slug }}/setlists">{{ _('Setlists') }}</a><a href="/c/{{ nav_church.slug }}/members">{{ _('Members') }}</a>{% endif %}
-        {% if user.is_admin %}<a href="/">{{ _('My library') }}</a>{% endif %}
-      {% else %}
+      {% elif not user.is_admin %}
         <a href="/">{{ _('Library') }}</a>
       {% endif %}
-      {% if user.is_admin %}<a href="/admin/churches">{{ _('Churches') }}</a><a href="/admin/users">{{ _('Users') }}</a>{% endif %}
+      {% if user.is_admin %}<a href="/admin/churches">{{ _('Churches') }}</a><a href="/">{{ _('My library') }}</a><a href="/admin/users">{{ _('Users') }}</a>{% endif %}
       <a href="/account">{{ user.display_name or user.username }}</a>
       {{ lang_switch() }}
       <form method="post" action="/logout" class="inline">

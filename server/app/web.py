@@ -124,7 +124,8 @@ def login(
         request.session["lang"] = lang
         user.language = lang
         db.commit()
-    return redirect("/")
+    # The super admin starts on the churches dashboard; everyone else on their library.
+    return redirect("/admin/churches" if user.is_admin else "/")
 
 
 @router.get("/lang/{code}")
@@ -645,6 +646,7 @@ def delete_user(user_id: int, request: Request, user: User = Depends(web_admin),
 
 @router.get("/admin/churches")
 def churches_page(request: Request, user: User = Depends(web_admin), db: Session = Depends(get_db)):
+    request.session.pop("church", None)
     churches = list(db.scalars(select(Church).order_by(Church.name)))
     return render(request, "churches.html", user, churches=churches)
 
