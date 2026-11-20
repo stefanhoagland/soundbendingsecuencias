@@ -10,3 +10,11 @@ document.addEventListener("submit", (e) => {
   const msg = e.target.dataset && e.target.dataset.confirm;
   if (msg && !window.confirm(msg)) e.preventDefault();
 });
+
+// Phone menu: the ☰ button in the top bar opens and closes the links.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".menu-btn");
+  if (!btn) return;
+  const open = btn.closest(".topbar").classList.toggle("open");
+  btn.setAttribute("aria-expanded", String(open));
+});

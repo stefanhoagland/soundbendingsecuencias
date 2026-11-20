@@ -53,7 +53,8 @@ code.token { user-select: all; background: #000; padding: .15rem .4rem; border-r
 .row > label { flex: 1; min-width: 120px; }
 .row.end { justify-content: flex-end; }
 .grid-2 { display: grid; grid-template-columns: 1.7fr 1fr; gap: 1.2rem; align-items: start; }
-@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+.grid-2 > * { min-width: 0; }
 
 label { display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; color: var(--muted); }
 label.check { flex-direction: row; align-items: center; gap: .4rem; }
@@ -294,3 +295,30 @@ a.warn { color: var(--accent-2); }
 .transfer-form > * { flex: 0 0 auto; }
 .center-text { text-align: center; }
 td.row-actions { white-space: nowrap; }
+
+/* phones */
+.menu-btn { display: none; }
+@media (max-width: 760px) {
+  .topbar { flex-wrap: wrap; padding: .6rem 1rem; gap: .5rem; }
+  .brand-wrap { min-width: 0; }
+  .brand { font-size: .95rem; }
+  .super-badge { display: none; }
+  .brand-wrap { flex: 1; }
+  .menu-btn { display: inline-flex; flex: none; flex-direction: column; justify-content: center; align-items: stretch; gap: 4px; width: 40px; height: 36px;
+    padding: 0 9px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .menu-btn span { display: block; height: 2px; background: var(--text); border-radius: 2px; }
+  .topbar nav { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: 0; padding-top: .3rem; }
+  .topbar.open nav { display: flex; }
+  .topbar nav > a, .topbar nav .link { padding: .65rem .2rem; border-top: 1px solid var(--line); text-align: left; }
+  .topbar nav .lang-switch { align-self: flex-start; margin: .6rem 0; }
+  .topbar nav form.inline { display: block; }
+  .topbar nav form.inline .link { width: 100%; border-radius: 0; }
+  /* lists of people: one card-like block per row instead of a wide table */
+  table.plain thead { display: none; }
+  table.plain, table.plain tbody { display: block; }
+  table.plain tr { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; padding: .8rem 0; border-bottom: 1px solid var(--line); }
+  table.plain td { display: block; padding: 0; border: none; }
+  table.plain td:first-child { font-weight: 700; }
+  table.plain td.row-actions { width: 100%; white-space: normal; }
+  table.plain td.row-actions .row.end { justify-content: flex-start; }
+}
