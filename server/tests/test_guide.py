@@ -139,6 +139,12 @@ def test_speech_regions_find_each_spoken_cue(tmp_path):
     assert len(clip) / 16000 < 30  # 3 minutes of guide -> a few seconds of speech
     for (offset, a, _b) in spans:
         assert abs(unstitch(offset + 0.25, spans) - (a + 0.25)) < 1e-6
+    # A word Whisper places slightly early (in the gap before a piece) still maps to that piece
+    from app.guide import Word, unstitch_word
+
+    offset, a, b = spans[3]
+    w = unstitch_word(Word("Verse", offset - 0.5, offset + 0.3), spans)
+    assert w.start == a and a < w.end <= b
 
 
 @pytest.mark.skipif(not os.environ.get("RUN_WHISPER"), reason="set RUN_WHISPER=1 to run the real speech model")

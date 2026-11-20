@@ -227,26 +227,39 @@ class WhisperTranscriber:
         return self._model
 
     def transcribe(self, path: Path) -> list[Word]:
+        import numpy as np
+
         audio = load_for_whisper(path)
         regions = speech_regions(audio)
-        if regions:
-            clip, spans = stitch(audio, regions)
-        else:
-            clip, spans = audio, [(0.0, 0.0, len(audio) / SR)]
         with self._lock:
             model = self._load()
+            if not regions or len(regions) > MAX_PIECES:
+                # Nothing quiet to cut, or it's really a vocal track: listen to all of it.
+                lang = self._language(model, audio)
+                return self._words(model, audio, lang, vad=True)
+            clip, _spans = stitch(audio, regions)
             lang = self._language(model, clip)
-            segments, _info = model.transcribe(
-                clip,
-                language=lang,
-                word_timestamps=True,
-                initial_prompt=PROMPTS.get(lang, INITIAL_PROMPT),
-                condition_on_previous_text=False,
-                vad_filter=False,  # silence is already cut out
-                beam_size=5,
-            )
-            words = [Word(w.word, w.start, w.end) for seg in segments for w in (seg.words or [])]
-        return [Word(w.text, unstitch(w.start, spans), unstitch(w.end, spans)) for w in words]
+            # Each spoken bit on its own, so every cue is heard and its time is exact.
+            pad = np.zeros(int(PIECE_PAD * SR), dtype=np.float32)
+            out: list[Word] = []
+            for a, b in regions:
+                piece = np.concatenate([pad, audio[int(a * SR): int(b * SR)], pad])
+                for w in self._words(model, piece, lang):
+                    clamp = lambda t: min(max(a + t - PIECE_PAD, a), b)  # noqa: E731
+                    out.append(Word(w.text, clamp(w.start), clamp(w.end)))
+            return out
+
+    def _words(self, model, audio, lang: str, vad: bool = False) -> list[Word]:
+        segments, _info = model.transcribe(
+            audio,
+            language=lang,
+            word_timestamps=True,
+            initial_prompt=PROMPTS.get(lang, INITIAL_PROMPT),
+            condition_on_previous_text=False,
+            vad_filter=vad,
+            beam_size=5,
+        )
+        return [Word(w.word, w.start, w.end) for seg in segments for w in (seg.words or [])]
 
     def _language(self, model, clip) -> str:
         """English-only models are always "en"; otherwise ask the model (guides are English or Spanish)."""
@@ -264,12 +277,14 @@ class WhisperTranscriber:
 # ---- cutting the silence out -----------------------------------------------------
 # Guide tracks are mostly silence with a word every 20-40 seconds. Whisper reads audio
 # in 30-second windows and tends to drop lone words in long silent stretches, so we find
-# where someone is speaking, butt those bits together with short gaps, and map the
-# word times back afterwards.
+# where someone is speaking and transcribe each of those bits on its own (a stitched
+# copy of all of them is only used to tell English from Spanish).
 
 SR = 16000
 FRAME = 320  # 20 ms
-GAP = 0.6  # silence put between stitched pieces, seconds
+GAP = 1.5  # silence between stitched pieces (only used to detect the language)
+PIECE_PAD = 0.5  # silence around each spoken bit when transcribing it
+MAX_PIECES = 120  # more than this and it isn't a sparse guide track
 
 
 def speech_regions(audio, min_len: float = 0.12, join: float = 0.45, pad: float = 0.2) -> list[tuple[float, float]]:
@@ -319,6 +334,21 @@ def stitch(audio, regions):
         parts += [piece, gap]
         pos += len(piece) / SR + GAP
     return np.ascontiguousarray(np.concatenate(parts), dtype=np.float32), spans
+
+
+def unstitch_word(w: Word, spans) -> Word:
+    """Map a word back to the original track. The piece is chosen by the word's middle
+    (nearest piece if it falls in a gap), and the times are kept inside that piece."""
+    mid = (w.start + w.end) / 2
+
+    def distance(span):
+        offset, a, b = span
+        lo, hi = offset, offset + (b - a)
+        return 0.0 if lo <= mid <= hi else min(abs(mid - lo), abs(mid - hi))
+
+    offset, a, b = min(spans, key=distance)
+    clamp = lambda t: min(max(a + (t - offset), a), b)  # noqa: E731
+    return Word(w.text, clamp(w.start), clamp(w.end))
 
 
 def unstitch(t: float, spans) -> float:
