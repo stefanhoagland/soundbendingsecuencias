@@ -21,5 +21,5 @@
   <Config Name="Email: SMTP password" Target="SBS_SMTP_PASSWORD" Default="" Mode="" Description="For Resend, your API key (starts with re_)" Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Email: from address" Target="SBS_SMTP_FROM" Default="" Mode="" Description="e.g. Soundbending Secuencias &lt;no-reply@hoaglu.com&gt;" Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="Auto sections from guide" Target="SBS_AUTO_SECTIONS" Default="1" Mode="" Description="1 = listen to guide tracks after upload and add section markers. 0 = off." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
-  <Config Name="Speech model" Target="SBS_WHISPER_MODEL" Default="base.en" Mode="" Description="tiny.en (fastest), base.en (default), small.en (most accurate, slower)" Type="Variable" Display="advanced" Required="false" Mask="false">base.en</Config>
+  <Config Name="Speech model" Target="SBS_WHISPER_MODEL" Default="small" Mode="" Description="small (default, hears English and Spanish cues), base (faster), medium (most accurate, slower). Models ending in .en only understand English." Type="Variable" Display="advanced" Required="false" Mask="false">small</Config>
 </Container>

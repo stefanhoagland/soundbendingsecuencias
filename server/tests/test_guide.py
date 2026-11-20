@@ -97,37 +97,95 @@ def test_failure_is_reported(web, wav, app):
     assert web.get(f"/songs/{song_id}/sections/status").json()["status"] == "failed"
 
 
-@pytest.mark.skipif(not os.environ.get("RUN_WHISPER"), reason="set RUN_WHISPER=1 to run the real speech model")
-def test_real_whisper_on_spoken_guide(tmp_path):
-    """End to end with the real model: espeak-ng says the cues, Whisper hears them."""
-    if not shutil.which("espeak-ng"):
-        pytest.skip("espeak-ng not installed")
+def _spoken_guide(tmp_path, cues, voice, gap):
+    """A guide track: espeak-ng says each cue, then `gap` seconds of near-silence (like a real guide)."""
+    import wave
+
     import numpy as np
 
     from app.audio import read_mono
+
+    parts, starts, pos = [], [], 0.0
+    rng = np.random.default_rng(1)
+    for cue in cues:
+        out = tmp_path / "w.wav"
+        subprocess.run(["espeak-ng", "-v", voice, "-s", "150", "-w", str(out), cue], check=True)
+        samples, rate = read_mono(out)
+        assert rate == 22050
+        starts.append(pos)
+        quiet = (rng.standard_normal(int(gap * rate) - len(samples)) * 0.0005).astype(np.float32)  # hiss
+        parts += [samples, quiet]
+        pos += gap
+    audio = (np.clip(np.concatenate(parts), -1, 1) * 32767).astype("<i2")
+    guide = tmp_path / "guide.wav"
+    with wave.open(str(guide), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050); w.writeframes(audio.tobytes())
+    return guide, starts
+
+
+def test_speech_regions_find_each_spoken_cue(tmp_path):
+    if not shutil.which("espeak-ng"):
+        pytest.skip("espeak-ng not installed")
+    from app.guide import load_for_whisper, speech_regions, stitch, unstitch
+
+    cues = ["Intro", "Verse one", "Chorus", "Verse two", "Chorus", "Bridge", "Chorus", "Ending"]
+    guide, starts = _spoken_guide(tmp_path, cues, "en-us", 24.0)
+    audio = load_for_whisper(guide)
+    regions = speech_regions(audio)
+    assert len(regions) == len(cues)
+    for (a, _b), s0 in zip(regions, starts):
+        assert abs(a - s0) < 0.3
+    clip, spans = stitch(audio, regions)
+    assert len(clip) / 16000 < 30  # 3 minutes of guide -> a few seconds of speech
+    for (offset, a, _b) in spans:
+        assert abs(unstitch(offset + 0.25, spans) - (a + 0.25)) < 1e-6
+
+
+@pytest.mark.skipif(not os.environ.get("RUN_WHISPER"), reason="set RUN_WHISPER=1 to run the real speech model")
+@pytest.mark.parametrize(
+    "voice,cues,expected",
+    [
+        ("en-us", ["Intro", "Verse one", "Chorus", "Verse two", "Pre chorus", "Chorus", "Bridge", "Chorus", "Ending"],
+         ["Intro", "Verse 1", "Chorus", "Verse 2", "Pre-Chorus", "Chorus", "Bridge", "Chorus", "Ending"]),
+        ("es-419", ["Intro", "Verso uno", "Coro", "Verso dos", "Coro", "Puente", "Coro", "Final"],
+         ["Intro", "Verso 1", "Coro", "Verso 2", "Coro", "Puente", "Coro", "Final"]),
+    ],
+    ids=["english", "spanish"],
+)
+def test_real_whisper_on_spoken_guide(tmp_path, voice, cues, expected):
+    """End to end with the real model: espeak-ng says the cues 25 s apart (like a real
+    guide, mostly silence), Whisper must hear every one."""
+    if not shutil.which("espeak-ng"):
+        pytest.skip("espeak-ng not installed")
+    from app.config import _whisper_model
     from app.guide import WhisperTranscriber
 
-    rate, gap = 22050, 6.0
-    parts = []
-    for cue in ["Intro", "Verse one", "Chorus", "Verse two", "Bridge", "Ending"]:
-        out = tmp_path / "w.wav"
-        subprocess.run(["espeak-ng", "-s", "150", "-w", str(out), cue], check=True)
-        samples, sr = read_mono(out)
-        assert sr == rate
-        pad = np.zeros(int(gap * rate) - len(samples), dtype=np.float32)
-        parts += [samples, pad]
-    audio = (np.concatenate(parts) * 32767).astype("<i2")
-    guide = tmp_path / "guide.wav"
-    import wave
+    guide, starts = _spoken_guide(tmp_path, cues, voice, 25.0)
+    t = WhisperTranscriber(_whisper_model(os.environ.get("SBS_WHISPER_MODEL", "")), tmp_path / "models")
+    words = t.transcribe(guide)
+    print([(w.text, round(w.start, 1)) for w in words])
+    found = find_cues(words)
+    assert [c.label for c in found] == expected
+    for c, s0 in zip(found, starts):
+        assert abs(c.start - s0) < 1.5
 
-    with wave.open(str(guide), "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(audio.tobytes())
 
-    t = WhisperTranscriber(os.environ.get("SBS_WHISPER_MODEL", "base.en"), tmp_path / "models")
-    cues = find_cues(t.transcribe(guide))
-    assert [c.label for c in cues] == ["Intro", "Verse 1", "Chorus", "Verse 2", "Bridge", "Ending"]
-    for i, c in enumerate(cues):
-        assert abs(c.start - i * gap) < 1.0
+def test_spanish_cues():
+    words = [Word(w, i * 10.0, i * 10.0 + 0.5) for i, w in enumerate(
+        ["Introducción", "Verso", "uno", "Pre", "coro", "Coro.", "Estrofa", "dos", "Puente", "Último", "coro", "Final"])]
+    # numbers attach only when said right after the cue
+    words[2] = Word("uno", 10.6, 11.0)
+    words[7] = Word("dos", 60.6, 61.0)
+    labels = [c.label for c in find_cues(words)]
+    assert labels == ["Intro", "Verso 1", "Pre-Coro", "Coro", "Verso 2", "Puente", "Coro", "Final"]
+
+
+def test_old_english_only_default_is_upgraded():
+    from app.config import _whisper_model
+
+    assert _whisper_model("") == "small"
+    assert _whisper_model("base.en") == "small"
+    assert _whisper_model("medium") == "medium"
 
 
 def test_load_for_whisper_resamples_to_16k(tmp_path, wav):
