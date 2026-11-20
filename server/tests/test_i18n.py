@@ -44,6 +44,15 @@ def test_switch_language(client, web):
     assert web.get("/lang/en?next=//evil.example", follow_redirects=False).headers["location"] == "/"
 
 
+def test_language_links_have_no_bare_slashes(web):
+    # Nginx Proxy Manager's "Block Common Exploits" rejects query strings like
+    # next=/c/church/members with a 403, so the page path is fully encoded.
+    page = web.get("/account?x=a/b").text
+    assert 'href="/lang/es?next=%2Faccount%3Fx%3Da%2Fb"' in page
+    r = web.get("/lang/es?next=%2Faccount%3Fx%3Da%2Fb", follow_redirects=False)
+    assert r.headers["location"] == "/account?x=a/b"
+
+
 def test_spanish_browser_defaults_to_spanish(client):
     assert "Iniciar sesión" in client.get("/login", headers={"accept-language": "es-MX,es;q=0.9"}).text
     assert "Sign in" in client.get("/login", headers={"accept-language": "en-US"}).text

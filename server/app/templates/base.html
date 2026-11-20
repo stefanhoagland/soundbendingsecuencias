@@ -1,7 +1,7 @@
 {%- macro lang_switch() -%}
 <span class="lang-switch" role="group" aria-label="{{ _('Language') }}">
-  <a href="/lang/en?next={{ request.url.path|urlencode }}{{ ('%3F' ~ request.url.query|urlencode) if request.url.query }}" class="{{ 'on' if lang == 'en' }}" hreflang="en">EN</a>
-  <a href="/lang/es?next={{ request.url.path|urlencode }}{{ ('%3F' ~ request.url.query|urlencode) if request.url.query }}" class="{{ 'on' if lang == 'es' }}" hreflang="es-MX">ES</a>
+  <a href="/lang/en?next={{ request.url.path|urlencode|replace('/', '%2F') }}{{ ('%3F' ~ request.url.query|urlencode|replace('/', '%2F')) if request.url.query }}" class="{{ 'on' if lang == 'en' }}" hreflang="en">EN</a>
+  <a href="/lang/es?next={{ request.url.path|urlencode|replace('/', '%2F') }}{{ ('%3F' ~ request.url.query|urlencode|replace('/', '%2F')) if request.url.query }}" class="{{ 'on' if lang == 'es' }}" hreflang="es-MX">ES</a>
 </span>
 {%- endmacro -%}
 <!doctype html>
