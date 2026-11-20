@@ -233,3 +233,16 @@ def test_setlists_leaders_build_and_share(app, web, wav):
     # Deleting a song drops it from the setlist
     leader.post(f"/songs/{b}/delete", data={"csrf": leader.csrf})
     assert "Digno" not in member.get(f"/setlists/{sl}").text
+
+
+def test_super_admin_lands_on_churches(app, client, web):
+    setup_church(web)
+    c = TestClient(app)
+    r = c.post("/login", data={"username": "admin", "password": "admin-pass-123", "csrf": csrf_of(c)}, follow_redirects=False)
+    assert r.headers["location"] == "/admin/churches"
+    page = c.get("/admin/churches").text
+    assert "Super admin" in page and "Pastor" in page  # leaders listed
+    leader = TestClient(app)
+    r = leader.post("/login", data={"username": "pastor", "password": "leader-pass-1", "csrf": csrf_of(leader)}, follow_redirects=False)
+    assert r.headers["location"] == "/"
+    assert "Super admin" not in leader.get("/c/iglesia-central").text

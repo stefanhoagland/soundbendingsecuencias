@@ -11,7 +11,7 @@
       <tr>
         <td>{{ u.username }}</td>
         <td>{{ u.display_name }}</td>
-        <td>{{ _('Admin') if u.is_admin else (_(u.church_role|capitalize) if u.church else _('Own library')) }}</td>
+        <td>{{ _('Super admin') if u.is_admin else (_(u.church_role|capitalize) if u.church else _('Own library')) }}</td>
         <td>{% if u.church %}<a href="/c/{{ u.church.slug }}">{{ u.church.name }}</a>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td>{{ u.songs|length }}</td>
         <td class="row end">
@@ -42,7 +42,7 @@
       <label>{{ _('Display name') }} <input name="display_name"></label>
     </div>
     <label>{{ _('Password') }} <input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
-    <label class="check"><input type="checkbox" name="is_admin"> {{ _('Admin (can manage users)') }}</label>
+    <label class="check"><input type="checkbox" name="is_admin"> {{ _('Super admin (manages churches and users)') }}</label>
     <div class="row end"><button class="primary">{{ _('Add user') }}</button></div>
   </form>
 </section>
