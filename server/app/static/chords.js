@@ -132,10 +132,20 @@
     return false;
   }
 
+  /** Charts pasted from websites or PDFs carry invisible characters (zero-width spaces,
+   *  no-break spaces, odd line breaks) that stop chords from being recognised. */
+  function normalize(text) {
+    return String(text || "")
+      .replace(/\r\n?|[\u2028\u2029\u0085]/g, "\n")
+      .replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
+      .replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\t]/g, (c) => (c === "\t" ? "    " : " "))
+      .replace(/[\uff03]/g, "#");
+  }
+
   /** Parse a chart into blocks the renderer (or the Mac app) can lay out. */
   function parse(text, semitones, flats) {
     semitones = semitones || 0;
-    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    const lines = normalize(text).split("\n");
     const out = [];
     let inChorus = false;
     for (let i = 0; i < lines.length; i++) {
@@ -160,6 +170,12 @@
           out.push({ type: "heading", text: label });
           continue;
         }
+      }
+      const tagged = /^\s*\[([^\]]+)\]\s+(.+)$/.exec(line);
+      if (tagged && !isChord(tagged[1].trim()) && isChordLine(tagged[2])) {
+        out.push({ type: "heading", text: tagged[1].trim() });
+        out.push({ type: "chords", chords: transposeChordLine(tagged[2], semitones, flats), chorus: inChorus });
+        continue;
       }
       const labelled = /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 \-']{0,24}):\s+(.+)$/.exec(line);
       if (labelled && isChordLine(labelled[2])) {
@@ -220,5 +236,5 @@
     return toHTML(parse(text, semitones, flats));
   }
 
-  return { isChord, isChordLine, transposeChord, transposeChordLine, transposeKey, prefersFlats, parse, render };
+  return { normalize, isChord, isChordLine, transposeChord, transposeChordLine, transposeKey, prefersFlats, parse, render };
 });

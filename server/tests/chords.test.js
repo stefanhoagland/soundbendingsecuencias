@@ -77,3 +77,16 @@ test("Spanish lyric lines are not mistaken for chords", () => {
   assert.ok(!C.isChordLine("Mi Dios es fiel"));
   assert.ok(!C.isChordLine("Si tú estás aquí"));
 });
+
+test("charts pasted with invisible characters still transpose", () => {
+  const text = "E​\nTan consumidos por tu amor\n C#m A Que hemos perdido\r\nB/D#​ C#m B C#m​\nNadie como Tú";
+  const blocks = C.parse(text, 3, false);
+  const chords = blocks.filter((b) => b.type === "pair").map((b) => b.chords.trim().replace(/\s+/g, " "));
+  assert.deepEqual(chords, ["G", "Em C", "D/F# Em D Em"]);
+});
+
+test("a [Section] tag followed by chords on the same line", () => {
+  const blocks = C.parse("[Intro] E B A C#m B E", 3, false);
+  assert.deepEqual(blocks[0], { type: "heading", text: "Intro" });
+  assert.equal(blocks[1].chords.replace(/\s+/g, " "), "G D C Em D G");
+});
