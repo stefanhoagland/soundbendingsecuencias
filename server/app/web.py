@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import i18n, section_jobs, services
+from . import i18n, previews, section_jobs, services
 from .deps import (
     can_add_songs,
     can_edit,
@@ -23,7 +23,7 @@ from .deps import (
 )
 from .models import CHURCH_ROLES, TRACK_ROLES, ApiToken, Church, Setlist, Song, User
 from .security import new_api_token, verify_password
-from .storage import track_path
+from .storage import preview_path, track_path
 
 router = APIRouter(include_in_schema=False)
 
@@ -245,6 +245,7 @@ async def create_song_from_zip(
         if not created:
             services.delete_song(db, library_dir, song)
             continue
+        request.app.state.previews.kick()
         section_jobs.maybe_queue_after_upload(request.app.state, db, song)
         made.append(song)
     if fetch:
@@ -292,6 +293,7 @@ def song_page(song_id: int, request: Request, user: User = Depends(web_user), db
         roles=TRACK_ROLES,
         fmt=services.format_timestamp,
         has_guide=section_jobs.has_guide(song),
+        use_previews=previews.song_ready(get_settings(request).library_dir, song),
         name_options=services.track_name_options(db, user),
         suggest_name=lambda t: services.clean_name(t.original_filename, song.title),
         tab="chart" if request.query_params.get("tab") == "chart" else "mix",
@@ -363,6 +365,7 @@ async def upload_tracks(
     song = owned_song(song_id, user, db)
     created, errors = await services.add_tracks(db, get_settings(request).library_dir, song, files)
     if created:
+        request.app.state.previews.kick()
         section_jobs.maybe_queue_after_upload(request.app.state, db, song)
     if request.headers.get("x-requested-with") == "fetch":
         status = 422 if errors and not created else 200
@@ -440,6 +443,17 @@ def track_audio(track_id: int, request: Request, user: User = Depends(web_user),
     if not path.exists():
         raise HTTPException(404, "Audio file is missing on the server")
     return FileResponse(path, media_type="audio/wav", filename=track.original_filename)
+
+
+@router.get("/tracks/{track_id}/preview")
+def track_preview(track_id: int, request: Request, user: User = Depends(web_user), db: Session = Depends(get_db)):
+    """The small AAC copy for the browser player; falls back to the WAV until it's made."""
+    track = owned_track(track_id, user, db, edit=False)
+    lib = get_settings(request).library_dir
+    small = preview_path(lib, track.song_id, track.stored_filename)
+    if small.exists():
+        return FileResponse(small, media_type=previews.MEDIA_TYPE, headers={"Cache-Control": "private, max-age=86400"})
+    return track_audio(track_id, request, user, db)
 
 
 # ---- key & chord chart ----------------------------------------------------

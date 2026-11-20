@@ -56,6 +56,9 @@ def app(tmp_path, monkeypatch):
     application = create_app(load_settings(tmp_path / "data"))
     application.state.transcriber = FakeTranscriber()
     application.state.jobs = SyncJobs()
+    from app.previews import SyncPreviews
+
+    application.state.previews = SyncPreviews(application.state.settings.library_dir, application.state.session_factory)
     return application
 
 

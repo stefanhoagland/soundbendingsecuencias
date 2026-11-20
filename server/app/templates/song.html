@@ -73,7 +73,7 @@
   </div>
   <div class="mixer" id="mixer">
     {% for t in song.tracks %}
-    <div class="strip role-{{ t.role }}" data-track="{{ t.id }}" data-src="/tracks/{{ t.id }}/audio"
+    <div class="strip role-{{ t.role }}" data-track="{{ t.id }}" data-src="/tracks/{{ t.id }}/{{ 'preview' if use_previews else 'audio' }}"
          data-gain="{{ t.gain_db }}" data-pan="{{ t.pan }}" data-muted="{{ 1 if t.muted else 0 }}">
       <div class="ms">
         <button type="button" class="solo" title="{{ _('Solo') }}">S</button>

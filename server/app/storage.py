@@ -71,8 +71,14 @@ def save_fileobj(library_dir: Path, song_id: int, fh: BinaryIO) -> tuple[str, in
     return stored, size, digest.hexdigest(), info
 
 
+def preview_path(library_dir: Path, song_id: int, stored_filename: str) -> Path:
+    """The small AAC copy the browser player uses (see previews.py)."""
+    return song_dir(library_dir, song_id) / (Path(stored_filename).stem + ".m4a")
+
+
 def delete_track_file(library_dir: Path, song_id: int, stored_filename: str) -> None:
     track_path(library_dir, song_id, stored_filename).unlink(missing_ok=True)
+    preview_path(library_dir, song_id, stored_filename).unlink(missing_ok=True)
 
 
 def delete_song_dir(library_dir: Path, song_id: int) -> None:
@@ -85,8 +91,12 @@ def copy_track_file(library_dir: Path, from_song: int, stored_filename: str, to_
     src = track_path(library_dir, from_song, stored_filename)
     dst_dir = song_dir(library_dir, to_song)
     dst_dir.mkdir(parents=True, exist_ok=True)
-    dst = dst_dir / stored_filename
-    try:
-        os.link(src, dst)
-    except OSError:
-        shutil.copy2(src, dst)
+    pairs = [(src, dst_dir / stored_filename)]
+    preview = preview_path(library_dir, from_song, stored_filename)
+    if preview.exists():
+        pairs.append((preview, preview_path(library_dir, to_song, stored_filename)))
+    for a, b in pairs:
+        try:
+            os.link(a, b)
+        except OSError:
+            shutil.copy2(a, b)
