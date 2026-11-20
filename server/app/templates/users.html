@@ -21,7 +21,8 @@
         <td>{{ _('Super admin') if u.is_admin else (_(u.church_role|capitalize) if u.church else _('Own library')) }}</td>
         <td>{% if u.church %}<a href="/c/{{ u.church.slug }}">{{ u.church.name }}</a>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td>{{ u.songs|length }}</td>
-        <td class="row end">
+        <td class="row-actions">
+          <div class="row end">
           <form method="post" action="/admin/users/{{ u.id }}/password" class="inline row">
             <input type="hidden" name="csrf" value="{{ csrf }}">
             <input type="password" name="password" placeholder="{{ _('New password') }}" minlength="8" required class="small-input">
@@ -33,6 +34,7 @@
             <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">{{ _('Delete') }}</button>
           </form>
           {% endif %}
+          </div>
         </td>
       </tr>
     {% endfor %}
@@ -50,7 +52,7 @@
     </div>
     <div class="row">
       <label>{{ _('Email') }} <input type="email" name="email" autocomplete="off"></label>
-      <label>{{ _('Password') }}{% if mail_ready %} <span class="muted small">{{ _('(optional if you add an email)') }}</span>{% endif %} <input type="password" name="password" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
+      <label>{{ _('Password') }} <input type="password" name="password" placeholder="{{ _('Optional if you add an email') if mail_ready else '' }}" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
     </div>
     <label class="check"><input type="checkbox" name="is_admin"> {{ _('Super admin (manages churches and users)') }}</label>
     <div class="row end"><button class="primary">{{ _('Add user') }}</button></div>

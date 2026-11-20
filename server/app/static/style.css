@@ -293,3 +293,4 @@ a.warn { color: var(--accent-2); }
 .transfer-form label.check { flex-direction: row; align-items: center; gap: 6px; }
 .transfer-form > * { flex: 0 0 auto; }
 .center-text { text-align: center; }
+td.row-actions { white-space: nowrap; }
