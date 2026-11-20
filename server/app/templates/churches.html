@@ -52,8 +52,12 @@
     <div class="row">
       <label>{{ _('Username') }} <input name="leader_username" pattern="[A-Za-z0-9_.\-]{2,64}"></label>
       <label>{{ _('Name') }} <input name="leader_name"></label>
-      <label>{{ _('Password') }} <input type="password" name="leader_password" minlength="8" autocomplete="new-password"></label>
     </div>
+    <div class="row">
+      <label>{{ _('Email') }} <input type="email" name="leader_email" autocomplete="off"></label>
+      <label>{{ _('Password') }}{% if mail_ready %} <span class="muted small">{{ _('(optional if you add an email)') }}</span>{% endif %} <input type="password" name="leader_password" minlength="8" autocomplete="new-password"></label>
+    </div>
+    {% if mail_ready %}<p class="muted small">{{ _('With an email address the leader gets a welcome email with a link to set their own password.') }}</p>{% endif %}
     <div class="row end"><button class="primary">{{ _('Add church') }}</button></div>
   </form>
 </section>

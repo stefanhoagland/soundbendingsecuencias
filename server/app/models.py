@@ -40,6 +40,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(128), default="")
+    # Optional; used for the welcome email and "Forgot password?".
+    email: Mapped[str] = mapped_column(String(254), default="", server_default="", index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     # Church members sign in straight to their church; site admins have no church.

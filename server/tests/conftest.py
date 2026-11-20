@@ -42,6 +42,21 @@ class FakeTranscriber:
         return list(self.words)
 
 
+class FakeMailer:
+    """Collects emails instead of sending them."""
+
+    def __init__(self):
+        self.enabled = True
+        self.sent = []
+
+    def send(self, to, subject, text, html_body):
+        if not self.enabled:
+            from app.mailer import MailError
+
+            raise MailError("Email isn't set up on the server yet")
+        self.sent.append({"to": to, "subject": subject, "text": text, "html": html_body})
+
+
 class SyncJobs:
     """Runs background jobs inline (and skips their start delay) so tests are deterministic."""
 
@@ -56,6 +71,7 @@ def app(tmp_path, monkeypatch):
     application = create_app(load_settings(tmp_path / "data"))
     application.state.transcriber = FakeTranscriber()
     application.state.jobs = SyncJobs()
+    application.state.mailer = FakeMailer()
     from app.previews import SyncPreviews
 
     application.state.previews = SyncPreviews(application.state.settings.library_dir, application.state.session_factory)

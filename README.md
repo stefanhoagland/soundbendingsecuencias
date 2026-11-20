@@ -64,6 +64,11 @@ docker compose up -d --build
 | `SBS_SESSION_DAYS` | `30` | How long you stay signed in |
 | `SBS_AUTO_SECTIONS` | `1` | Listen to guide tracks after upload and add section markers. `0` turns it off (the Detect button still works) |
 | `SBS_WHISPER_MODEL` | `base.en` | Speech model. `tiny.en` is faster, `small.en` is more accurate but slower |
+| `SBS_PUBLIC_URL` | *(blank)* | The site's public address, e.g. `https://secuencias.hoaglu.com`; used in email links |
+| `SBS_SMTP_HOST` | *(blank = email off)* | SMTP server for welcome / password emails, e.g. `smtp.resend.com` |
+| `SBS_SMTP_PORT` | `587` | `587` (STARTTLS) or `465` (SSL) |
+| `SBS_SMTP_USER` / `SBS_SMTP_PASSWORD` | | SMTP login (Resend: `resend` / your API key) |
+| `SBS_SMTP_FROM` | | Sender, e.g. `Soundbending Secuencias <no-reply@hoaglu.com>` |
 | `PORT` | `8080` | Port inside the container |
 
 The container runs as Unraid's `nobody:users` (99:100), so files it writes are owned the same way as the rest of your shares.

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Members') }} · {{ church.name }}{% endblock %}
-{% block main_class %}page narrow{% endblock %}
+{% block main_class %}page{% endblock %}
 {% block content %}
 <a class="muted small" href="/c/{{ church.slug }}">← {{ church.name }}</a>
 <h1>{{ _('{church} members', church=church.name) }}</h1>
@@ -8,12 +8,19 @@
 <section class="card">
   {% if church.members %}
   <table class="plain">
-    <thead><tr><th>{{ _('Username') }}</th><th>{{ _('Name') }}</th><th>{{ _('Role') }}</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Username') }}</th><th>{{ _('Name') }}</th><th>{{ _('Email') }}</th><th>{{ _('Role') }}</th><th></th></tr></thead>
     <tbody>
     {% for m in church.members %}
       <tr>
         <td>{{ m.username }}</td>
         <td>{{ m.display_name }}</td>
+        <td>
+          <form method="post" action="/c/{{ church.slug }}/members/{{ m.id }}/invite" class="inline row">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="email" name="email" value="{{ m.email }}" placeholder="{{ _('Email') }}" class="small-input" aria-label="{{ _('Email for {name}', name=m.username) }}">
+            <button class="small" title="{{ _('Save the address and email them a link to set their password') if mail_ready else _('Save the address') }}">{{ _('Send link') if mail_ready else _('Save') }}</button>
+          </form>
+        </td>
         <td>
           <form method="post" action="/c/{{ church.slug }}/members/{{ m.id }}/role" class="inline">
             <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -52,12 +59,13 @@
       <label>{{ _('Name') }} <input name="display_name"></label>
     </div>
     <div class="row">
-      <label>{{ _('Password') }} <input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+      <label>{{ _('Email') }} <input type="email" name="email" autocomplete="off"></label>
+      <label>{{ _('Password') }}{% if mail_ready %} <span class="muted small">{{ _('(optional if you add an email)') }}</span>{% endif %} <input type="password" name="password" minlength="8" {{ '' if mail_ready else 'required' }} autocomplete="new-password"></label>
       <label>{{ _('Role') }}
         <select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if r == 'member' }}>{{ _(r|capitalize) }}</option>{% endfor %}</select>
       </label>
     </div>
-    <p class="muted small">{{ _('Give them the username and password. They sign in on this site and go straight to {church}.', church=church.name) }}</p>
+    <p class="muted small">{% if mail_ready %}{{ _('With an email address they get a welcome email with a link to set their own password. They sign in on this site and go straight to {church}.', church=church.name) }}{% else %}{{ _('Give them the username and password. They sign in on this site and go straight to {church}.', church=church.name) }}{% endif %}</p>
     <div class="row end"><button class="primary">{{ _('Add person') }}</button></div>
   </form>
 </section>

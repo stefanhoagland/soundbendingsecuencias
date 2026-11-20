@@ -4,6 +4,16 @@
 {% block content %}
 <h1>{{ _('Account') }}</h1>
 <section class="card stack">
+  <h2>{{ _('Email') }}</h2>
+  <p class="muted small">{{ _('Used to send you a link if you forget your password.') }}</p>
+  <form method="post" action="/account/email" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="email" name="email" value="{{ user.email }}" placeholder="you@example.com" autocomplete="email">
+    <button>{{ _('Save') }}</button>
+  </form>
+</section>
+
+<section class="card stack">
   <h2>{{ _('Change password') }}</h2>
   <form method="post" action="/account/password" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf }}">

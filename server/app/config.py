@@ -21,6 +21,18 @@ class Settings:
     session_max_age: int
     auto_sections: bool = True
     whisper_model: str = "base.en"
+    # Address people use to reach the site, e.g. https://secuencias.hoaglu.com (used in email links).
+    public_url: str = ""
+    # Outgoing email (welcome and password emails). Any SMTP service works, e.g. Resend or Gmail.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+
+    @property
+    def mail_enabled(self) -> bool:
+        return bool(self.smtp_host and self.smtp_from)
 
     @property
     def models_dir(self) -> Path:
@@ -68,4 +80,10 @@ def load_settings(data_dir: str | Path | None = None) -> Settings:
         session_max_age=int(os.environ.get("SBS_SESSION_DAYS", "30")) * 86400,
         auto_sections=os.environ.get("SBS_AUTO_SECTIONS", "1").lower() not in ("0", "false", "no", "off"),
         whisper_model=os.environ.get("SBS_WHISPER_MODEL", "base.en"),
+        public_url=os.environ.get("SBS_PUBLIC_URL", "").strip().rstrip("/"),
+        smtp_host=os.environ.get("SBS_SMTP_HOST", "").strip(),
+        smtp_port=int(os.environ.get("SBS_SMTP_PORT", "") or 587),
+        smtp_user=os.environ.get("SBS_SMTP_USER", "").strip(),
+        smtp_password=os.environ.get("SBS_SMTP_PASSWORD", ""),
+        smtp_from=os.environ.get("SBS_SMTP_FROM", "").strip(),
     )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 import unicodedata
 from datetime import date, timedelta
 import zipfile
@@ -360,15 +361,35 @@ def add_section(db: Session, song: Song, name: str, start) -> Section:
     return section
 
 
-def validate_new_user(db: Session, username: str, password: str) -> str:
+EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def clean_email(db: Session, email: str, user: User | None = None) -> str:
+    """Normalise an optional email address; must be unique so "Forgot password?" finds one account."""
+    email = (email or "").strip().lower()
+    if not email:
+        return ""
+    if len(email) > 254 or not EMAIL_RE.fullmatch(email):
+        raise ValidationError("That email address doesn't look right")
+    other = db.scalar(select(User).where(User.email == email))
+    if other is not None and (user is None or other.id != user.id):
+        raise ValidationError("Another account already uses that email")
+    return email
+
+
+def validate_new_user(db: Session, username: str, password: str, email: str = "", invite: bool = False) -> tuple[str, str]:
+    """Returns (username, email). With `invite`, the password may be left empty: they set it from the email."""
     username = (username or "").strip().lower()
     if not re.fullmatch(r"[a-z0-9_.-]{2,64}", username):
         raise ValidationError("Username must be 2-64 letters, numbers, dots, dashes or underscores")
-    if len(password or "") < 8:
+    email = clean_email(db, email)
+    if invite and not email and not password:
+        raise ValidationError("Add their email so they can set a password, or type a password for them")
+    if (password or not (invite and email)) and len(password or "") < 8:
         raise ValidationError("Password must be at least 8 characters")
     if db.scalar(select(User).where(User.username == username)):
         raise ValidationError("That username is taken")
-    return username
+    return username, email
 
 
 def create_user(
@@ -377,15 +398,19 @@ def create_user(
     password: str,
     *,
     display_name: str = "",
+    email: str = "",
+    invite: bool = False,
     is_admin=False,
     church: Church | None = None,
     church_role: str = "member",
 ) -> User:
-    username = validate_new_user(db, username, password)
+    username, email = validate_new_user(db, username, password, email, invite)
     user = User(
         username=username,
         display_name=(display_name or "").strip() or username,
-        password_hash=hash_password(password),
+        email=email,
+        # No password yet: a random one nobody knows until they use the emailed link.
+        password_hash=hash_password(password or secrets.token_urlsafe(32)),
         is_admin=is_admin and church is None,
         church=church,
         church_role=church_role if church_role in CHURCH_ROLES else "member",
@@ -393,6 +418,11 @@ def create_user(
     db.add(user)
     db.commit()
     return user
+
+
+def set_email(db: Session, user: User, email: str) -> None:
+    user.email = clean_email(db, email, user)
+    db.commit()
 
 
 def set_password(db: Session, user: User, password: str) -> None:
