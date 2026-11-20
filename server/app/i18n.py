@@ -13,6 +13,7 @@ import re
 LANGS = ("en", "es")
 
 ES: dict[str, str] = {
+    'Menu': 'Menú',
     'Optional if you add an email': 'Opcional si agregas un correo',
     'Back to sign in': 'Volver a iniciar sesión',
     'Choose a new password': 'Elige una nueva contraseña',
