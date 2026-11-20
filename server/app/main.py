@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 import tempfile
+import zlib
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -81,6 +82,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.commit()
 
     templates = Jinja2Templates(directory=HERE / "templates")
+    # Changes whenever a static file changes, so browsers fetch fresh CSS/JS after an update.
+    static_files = sorted((HERE / "static").glob("*"))
+    templates.env.globals["static_v"] = format(
+        zlib.crc32(repr([(f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in static_files]).encode()), "x"
+    )
     templates.env.filters["filesize"] = _filesize
     templates.env.filters["duration"] = lambda s: (
         f"{int(s // 60)}:{int(s % 60):02d}" if s else "–"
