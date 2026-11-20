@@ -89,3 +89,12 @@ def test_account_email(web):
     assert "Email saved." in r.text and 'value="admin@example.com"' in r.text
     r = web.post("/account/email", data={"email": "not-an-email", "csrf": web.csrf})
     assert "look right" in r.text
+
+
+def test_sender_formats():
+    from app.mailer import sender
+
+    assert sender("Soundbending Secuencias <no-reply@hoaglu.com>") == ("Soundbending Secuencias", "no-reply@hoaglu.com")
+    assert sender("no-reply@hoaglu.com") == ("", "no-reply@hoaglu.com")
+    assert sender("Soundbending Secuencias no-reply@hoaglu.com") == ("Soundbending Secuencias", "no-reply@hoaglu.com")
+    assert sender('"Soundbending Secuencias no-reply@hoaglu.com"') == ("Soundbending Secuencias", "no-reply@hoaglu.com")

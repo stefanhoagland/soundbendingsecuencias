@@ -68,7 +68,7 @@ docker compose up -d --build
 | `SBS_SMTP_HOST` | *(blank = email off)* | SMTP server for welcome / password emails, e.g. `smtp.resend.com` |
 | `SBS_SMTP_PORT` | `587` | `587` (STARTTLS) or `465` (SSL) |
 | `SBS_SMTP_USER` / `SBS_SMTP_PASSWORD` | | SMTP login (Resend: `resend` / your API key) |
-| `SBS_SMTP_FROM` | | Sender, e.g. `Soundbending Secuencias <no-reply@hoaglu.com>` |
+| `SBS_SMTP_FROM` | | Sender address, e.g. `no-reply@hoaglu.com` (shown as "Soundbending Secuencias") |
 | `PORT` | `8080` | Port inside the container |
 
 The container runs as Unraid's `nobody:users` (99:100), so files it writes are owned the same way as the rest of your shares.

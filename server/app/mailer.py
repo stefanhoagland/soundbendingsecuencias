@@ -59,6 +59,19 @@ def read_token(settings: Settings, db: Session, token: str) -> tuple[User, str] 
 
 # ---- sending -----------------------------------------------------------------
 
+def sender(value: str) -> tuple[str, str]:
+    """(name, address) from "Name <a@b.com>", "a@b.com", or "Name a@b.com" (some UIs strip the < >)."""
+    value = (value or "").strip().strip('"\'')
+    name, addr = parseaddr(value)
+    if "<" not in value:
+        words = value.split()
+        at = [w for w in words if "@" in w]
+        if at:
+            addr = at[-1].strip("<>")
+            name = " ".join(w for w in words if w is not at[-1]).strip().strip('"')
+    return name, addr
+
+
 class SmtpMailer:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -72,8 +85,8 @@ class SmtpMailer:
         if not self.enabled:
             raise MailError("Email isn't set up on the server yet")
         msg = EmailMessage()
-        name, addr = parseaddr(st.smtp_from)
-        msg["From"] = formataddr((name or SITE, addr or st.smtp_from))
+        name, addr = sender(st.smtp_from)
+        msg["From"] = formataddr((name or SITE, addr))
         msg["To"] = to
         msg["Subject"] = subject
         msg.set_content(text)
@@ -89,7 +102,7 @@ class SmtpMailer:
                     server.ehlo()
             with server:
                 if st.smtp_user:
-                    server.login(st.smtp_user, st.smtp_password)
+                    server.login(st.smtp_user, st.smtp_password.strip())
                 server.send_message(msg)
         except (OSError, smtplib.SMTPException) as exc:
             log.warning("Sending email to %s failed: %s", to, exc)
