@@ -63,6 +63,15 @@ ES: dict[str, str] = {
         "Aquí das acceso a cada iglesia. Su gente inicia sesión y llega directo a la página de su iglesia, y solo ve las canciones de esa iglesia.",
     "Leaders": "Líderes",
     "Add a leader": "Agregar un líder",
+    "Send to church": "Enviar a una iglesia",
+    "Only you see this. A copy is independent: changes to one don’t touch the other. Moving takes it out of its current church and its setlists.":
+        "Solo tú ves esto. Una copia es independiente: los cambios en una no afectan a la otra. Mover la saca de su iglesia actual y de sus setlists.",
+    "To": "A",
+    "Copy": "Copiar",
+    "Move": "Mover",
+    "Send": "Enviar",
+    "Now in: {where}": "Ahora en: {where}",
+    "The song is already there": "La canción ya está ahí",
     # ---- library ----------------------------------------------------------------
     "+ New song": "+ Nueva canción",
     "Search title or artist": "Buscar por título o artista",
@@ -286,6 +295,10 @@ ES: dict[str, str] = {
 # Messages with names or numbers in them: (English regex, Spanish template).
 PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^Created “(?P<t>.+)” with (?P<n>\d+) tracks\.$"), "Se creó “{t}” con {n} pistas."),
+    (re.compile(r"^Moved “(?P<t>.+)” to your library\.$"), "Se movió “{t}” a tu biblioteca."),
+    (re.compile(r"^Moved “(?P<t>.+)” to (?P<c>.+)\.$"), "Se movió “{t}” a {c}."),
+    (re.compile(r"^Copied “(?P<t>.+)” to your library\. You're looking at the copy\.$"), "Se copió “{t}” a tu biblioteca. Estás viendo la copia."),
+    (re.compile(r"^Copied “(?P<t>.+)” to (?P<c>.+)\. You're looking at the copy\.$"), "Se copió “{t}” a {c}. Estás viendo la copia."),
     (re.compile(r"^Created (?P<n>\d+) song\(s\)\.$"), "Se crearon {n} canción(es)."),
     (re.compile(r"^Deleted “(?P<t>.+)”\.$"), "Se eliminó “{t}”."),
     (re.compile(r"^Deleted (?P<t>.+)\.$"), "Se eliminó {t}."),
